@@ -14,7 +14,8 @@ database.sqlite
 .env
 .env.*
 
-package-lock.json
+# Lock files: commit package-lock.json for reproducible deploys (e.g. Railway)
+# package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
