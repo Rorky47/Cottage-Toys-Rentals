@@ -1,0 +1,14 @@
+{
+  "name": "cart-multiplier-function",
+  "private": true,
+  "type": "module",
+  "codegen": {
+    "schema": "schema.graphql",
+    "documents": ["src/*.graphql"],
+    "generates": {
+      "src/generated/api.d.ts": {
+        "plugins": ["typescript", "typescript-operations"]
+      }
+    }
+  }
+}

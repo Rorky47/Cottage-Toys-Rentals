@@ -1,0 +1,7 @@
+name = "remix"
+roles = ["frontend", "backend"]
+webhooks_path = "/webhooks/app/uninstalled"
+
+[commands]
+# predev removed: prisma generate was causing EPERM on Windows when the query engine DLL was locked by another process
+dev = "npx prisma migrate deploy && npm exec remix vite:dev"

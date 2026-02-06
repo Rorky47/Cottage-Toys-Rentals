@@ -1,0 +1,30 @@
+node_modules
+.DS_Store
+
+/.cache
+/build
+/app/build
+/public/build/
+/public/_dev
+/app/public/build
+/prisma/dev.sqlite
+/prisma/dev.sqlite-journal
+database.sqlite
+
+.env
+.env.*
+
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+/extensions/*/dist
+ /extensions/*/src/generated/
+
+# Ignore shopify files created during app dev
+.shopify/*
+.shopify.lock
+
+# Generated types/schema
+/app/types/admin.generated.d.ts
+/app/types/admin-2025-07.schema.json

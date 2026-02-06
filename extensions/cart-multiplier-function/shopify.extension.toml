@@ -1,0 +1,20 @@
+api_version = "2026-01"
+
+[[extensions]]
+name = "Cart price multiplier"
+handle = "cart-multiplier-function"
+
+uid = "60660dfd-2152-20bb-f7d6-04fa9e3d949a61117948"
+
+type = "function"
+
+[[extensions.targeting]]
+target = "cart.transform.run"
+input_query = "src/run.graphql"
+export = "run"
+
+[extensions.build]
+path = "dist/index.wasm"
+
+[extensions.ui]
+enable_create = true

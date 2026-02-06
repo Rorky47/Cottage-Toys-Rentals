@@ -1,0 +1,708 @@
+{% assign variant = product.selected_or_first_available_variant %}
+
+<div
+  class="cottage-rental-calendar"
+  data-product-id="{{ product.id }}"
+  data-variant-id="{{ variant.id }}"
+  data-today="{{ 'now' | date: '%Y-%m-%d' }}"
+  data-currency="{{ shop.currency }}"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-app-proxy-base-path="{{ block.settings.app_proxy_base_path | default: '/apps/rental' }}"
+>
+  <style>
+    .cottage-rental-calendar {
+      border: 1px solid #e1e3e5;
+      border-radius: 10px;
+      padding: 16px;
+      margin: 20px 0;
+      background: #fff;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    .cottage-rental-calendar__title { margin: 0 0 10px 0; font-weight: 700; font-size: 16px; position: relative; z-index: 2; }
+    .cottage-rental-calendar__subtle { margin: 0 0 12px 0; color: #6b7280; font-size: 13px; }
+    .cottage-rental-calendar__row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: nowrap;
+      align-items: end;
+      width: 100%;
+    }
+    .cottage-rental-calendar__field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 48%;
+      min-width: 140px;
+    }
+    .cottage-rental-calendar__label { font-size: 13px; color: #111827; }
+    .cottage-rental-calendar__input {
+      padding: 6px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+      background: #fff;
+    }
+    .cottage-rental-calendar__grid { margin-top: 18px; position: relative; z-index: 1; }
+    .cottage-rental-calendar__monthbar {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      position: relative;
+      z-index: 2;
+      isolation: isolate;
+    }
+    .cottage-rental-calendar__navbtn {
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 13px;
+      position: relative;
+      z-index: 1;
+    }
+    .cottage-rental-calendar__month {
+      font-weight: 600;
+      font-size: 14px;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+      color: #111827;
+      background: #fff;
+      padding: 2px 8px;
+      border-radius: 999px;
+      justify-self: center;
+    }
+    .cottage-rental-calendar__dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
+    .cottage-rental-calendar__dow span { font-size: 12px; color: #6b7280; text-align: center; }
+    .cottage-rental-calendar__days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .cottage-rental-calendar__day {
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      border-radius: 8px;
+      padding: 8px 0;
+      cursor: pointer;
+      font-size: 13px;
+      text-align: center;
+      user-select: none;
+    }
+    .cottage-rental-calendar__day--past {
+      color: #9ca3af;
+      background: #f9fafb;
+      border-color: #e5e7eb;
+    }
+    .cottage-rental-calendar__day--today {
+      background: #dcfce7;
+      border-color: #86efac;
+      color: #166534;
+      font-weight: 700;
+    }
+    .cottage-rental-calendar__day[disabled] { opacity: 0.35; cursor: not-allowed; }
+    .cottage-rental-calendar__day--start,
+    .cottage-rental-calendar__day--end {
+      border-color: #111827;
+      background: #111827;
+      color: #fff;
+      font-weight: 700;
+    }
+    .cottage-rental-calendar__day--inrange {
+      border-color: #93c5fd;
+      background: #dbeafe;
+      color: #111827;
+      font-weight: 600;
+    }
+    .cottage-rental-calendar__actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .cottage-rental-calendar__btn {
+      border: 1px solid #111827;
+      background: #111827;
+      color: #fff;
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .cottage-rental-calendar__btn--secondary {
+      background: #fff;
+      color: #111827;
+      border-color: #d1d5db;
+    }
+    .cottage-rental-calendar__note { margin-top: 10px; font-size: 12px; color: #6b7280; }
+  </style>
+
+  <p class="cottage-rental-calendar__title">{{ block.settings.heading | default: "Select rental dates" }}</p>
+  <div class="cottage-rental-calendar__row">
+    <div class="cottage-rental-calendar__field">
+      <span class="cottage-rental-calendar__label">{{ block.settings.start_label | default: "Start date" }}</span>
+      <input class="cottage-rental-calendar__input" type="date" data-role="start" />
+    </div>
+    <div class="cottage-rental-calendar__field">
+      <span class="cottage-rental-calendar__label">{{ block.settings.end_label | default: "Return date" }}</span>
+      <input class="cottage-rental-calendar__input" type="date" data-role="end" />
+    </div>
+  </div>
+
+  <div class="cottage-rental-calendar__grid" data-role="calendar">
+    <div class="cottage-rental-calendar__monthbar">
+      <button class="cottage-rental-calendar__navbtn" type="button" data-role="prev">Prev</button>
+      <div class="cottage-rental-calendar__month" data-role="monthLabel">
+        {{ 'now' | date: '%B %Y' }}
+      </div>
+      <button class="cottage-rental-calendar__navbtn" type="button" data-role="next">Next</button>
+    </div>
+    <div class="cottage-rental-calendar__dow">
+      <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+    </div>
+    <div class="cottage-rental-calendar__days" data-role="days"></div>
+  </div>
+
+  <div class="cottage-rental-calendar__actions">
+    <button class="cottage-rental-calendar__btn" type="button" data-role="add">
+      {{ block.settings.add_to_rental_cart_label | default: "Add to rental cart" }}
+    </button>
+    <button class="cottage-rental-calendar__btn cottage-rental-calendar__btn--secondary" type="button" data-role="checkout">
+      {{ block.settings.checkout_label | default: "Checkout rentals" }}
+    </button>
+    <button class="cottage-rental-calendar__btn cottage-rental-calendar__btn--secondary" type="button" data-role="clear">
+      {{ block.settings.clear_label | default: "Clear dates" }}
+    </button>
+  </div>
+
+  {% if block.settings.help_text != blank %}
+    <div class="cottage-rental-calendar__note">{{ block.settings.help_text }}</div>
+  {% endif %}
+
+  <script>
+    (function () {
+      var root = document.currentScript && document.currentScript.closest('.cottage-rental-calendar');
+      if (!root) return;
+
+      var productId = root.getAttribute('data-product-id') || '';
+      var variantId = root.getAttribute('data-variant-id') || '';
+      var currency = root.getAttribute('data-currency') || '';
+      var shopDomain = root.getAttribute('data-shop-domain') || '';
+
+      var startInput = root.querySelector('[data-role="start"]');
+      var endInput = root.querySelector('[data-role="end"]');
+
+      var monthLabelEl = root.querySelector('[data-role="monthLabel"]');
+      var daysGrid = root.querySelector('[data-role="days"]');
+      var prevBtn = root.querySelector('[data-role="prev"]');
+      var nextBtn = root.querySelector('[data-role="next"]');
+
+      var addBtn = root.querySelector('[data-role="add"]');
+      var checkoutBtn = root.querySelector('[data-role="checkout"]');
+      var clearBtn = root.querySelector('[data-role="clear"]');
+
+      var priceEl = document.querySelector('.price-item--regular');
+      var originalPriceText = priceEl ? priceEl.textContent : null;
+
+      function pad2(n) { return String(n).padStart(2, '0'); }
+      function toDateOnlyString(d) {
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+      }
+      function parseDateOnly(s) {
+        if (!s) return null;
+        var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
+        if (!m) return null;
+        var dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        if (isNaN(dt.getTime())) return null;
+        // Basic validity check
+        if (dt.getFullYear() !== Number(m[1]) || (dt.getMonth() + 1) !== Number(m[2]) || dt.getDate() !== Number(m[3])) return null;
+        return dt;
+      }
+      function diffDaysInclusive(start, end) {
+        var startUTC = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+        var endUTC = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+        var days = Math.round((endUTC - startUTC) / 86400000) + 1;
+        return days;
+      }
+      function formatMoneyFromCents(cents) {
+        var amount = (Math.round(cents) / 100).toFixed(2);
+        return currency ? (currency + ' ' + amount) : amount;
+      }
+      function updateDisplayedPrice(text) {
+        if (!priceEl || !text) return;
+        priceEl.textContent = text;
+      }
+      function normalizeProxyBasePath(raw) {
+        var s = String(raw || '').trim();
+        if (!s) return '/apps/rental';
+        if (!s.startsWith('/')) s = '/' + s;
+        // remove trailing slash
+        if (s.length > 1 && s.endsWith('/')) s = s.slice(0, -1);
+        return s;
+      }
+      var appProxyBasePath = normalizeProxyBasePath(root.getAttribute('data-app-proxy-base-path') || '');
+      function appProxyUrl(pathAndQuery) {
+        if (shopDomain) return 'https://' + shopDomain + appProxyBasePath + pathAndQuery;
+        return appProxyBasePath + pathAndQuery;
+      }
+
+      var todayValue = root.getAttribute('data-today') || '';
+      var today = parseDateOnly(todayValue) || new Date();
+      today.setHours(0,0,0,0);
+      var todayStr = toDateOnlyString(today);
+
+      var view = new Date(today.getFullYear(), today.getMonth(), 1);
+
+      function renderCalendar() {
+        var year = view.getFullYear();
+        var month = view.getMonth();
+        monthLabelEl.textContent = view.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+
+        daysGrid.innerHTML = '';
+
+        var first = new Date(year, month, 1);
+        var startDow = first.getDay();
+        var daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        var startSelected = parseDateOnly(startInput.value);
+        var endSelected = parseDateOnly(endInput.value);
+        var startStr = startSelected ? toDateOnlyString(startSelected) : null;
+        var endStr = endSelected ? toDateOnlyString(endSelected) : null;
+
+        // Leading blanks
+        for (var i = 0; i < startDow; i++) {
+          var blank = document.createElement('div');
+          daysGrid.appendChild(blank);
+        }
+
+        for (var day = 1; day <= daysInMonth; day++) {
+          var d = new Date(year, month, day);
+          d.setHours(0,0,0,0);
+          var ds = toDateOnlyString(d);
+
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'cottage-rental-calendar__day';
+          btn.textContent = String(day);
+          btn.setAttribute('data-date', ds);
+
+          if (d < today) {
+            btn.disabled = true;
+            btn.classList.add('cottage-rental-calendar__day--past');
+          }
+          if (ds === todayStr) btn.classList.add('cottage-rental-calendar__day--today');
+
+          // Highlight logic
+          if (startStr && ds === startStr) btn.classList.add('cottage-rental-calendar__day--start');
+          if (endStr && ds === endStr) btn.classList.add('cottage-rental-calendar__day--end');
+          if (startStr && endStr && ds > startStr && ds < endStr) btn.classList.add('cottage-rental-calendar__day--inrange');
+
+          btn.addEventListener('click', function (e) {
+            var picked = e.currentTarget.getAttribute('data-date');
+            if (!picked) return;
+
+            var curStart = parseDateOnly(startInput.value);
+            var curEnd = parseDateOnly(endInput.value);
+
+            if (!curStart || (curStart && curEnd)) {
+              startInput.value = picked;
+              endInput.value = '';
+            } else {
+              // second pick becomes end; ensure end > start
+              if (picked <= startInput.value) {
+                startInput.value = picked;
+                endInput.value = '';
+              } else {
+                endInput.value = picked;
+              }
+            }
+
+            renderCalendar();
+            updatePriceFromSelection();
+          });
+
+          daysGrid.appendChild(btn);
+        }
+      }
+
+      function clearDates() {
+        startInput.value = '';
+        endInput.value = '';
+        renderCalendar();
+        if (originalPriceText) updateDisplayedPrice(originalPriceText);
+      }
+
+      var lastQuoteKey = null;
+      async function updatePriceFromSelection() {
+        var start = parseDateOnly(startInput.value);
+        var end = parseDateOnly(endInput.value);
+        if (!(start && end)) {
+          if (originalPriceText) updateDisplayedPrice(originalPriceText);
+          return;
+        }
+        var days = diffDaysInclusive(start, end);
+        if (!isFinite(days) || days <= 0) {
+          if (originalPriceText) updateDisplayedPrice(originalPriceText);
+          return;
+        }
+        var startStr = startInput.value;
+        var endStr = endInput.value;
+        var quoteKey = String(productId) + '|' + startStr + '|' + endStr + '|1';
+        lastQuoteKey = quoteKey;
+        try {
+          var qs =
+            '?product_id=' + encodeURIComponent(String(productId)) +
+            '&start_date=' + encodeURIComponent(String(startStr)) +
+            '&end_date=' + encodeURIComponent(String(endStr)) +
+            '&units=1';
+          var resp = await fetch(appProxyUrl('/quote' + qs), { credentials: 'same-origin' });
+          var j = await resp.json();
+          if (quoteKey !== lastQuoteKey) return;
+          if (j && j.ok && typeof j.lineTotalCents === 'number') {
+            updateDisplayedPrice(formatMoneyFromCents(j.lineTotalCents));
+          }
+        } catch (e) {}
+      }
+
+      function readRentalCart() {
+        try {
+          var raw = localStorage.getItem('cottage_rental_cart');
+          if (!raw) return [];
+          var parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          return [];
+        }
+      }
+      function writeRentalCart(items) {
+        try { localStorage.setItem('cottage_rental_cart', JSON.stringify(items)); } catch (e) {}
+      }
+
+      addBtn.addEventListener('click', function () {
+        addBtn.disabled = true;
+        addBtn.textContent = 'Adding…';
+        var u = 1;
+        var start = startInput.value;
+        var end = endInput.value;
+        var startDt = parseDateOnly(start);
+        var endDt = parseDateOnly(end);
+        if (!startDt || !endDt) {
+          addBtn.disabled = false;
+          addBtn.textContent = '{{ block.settings.add_to_rental_cart_label | default: "Add to rental cart" | escape }}';
+          alert('Please select a start date and a return date.');
+          return;
+        }
+        var days = diffDaysInclusive(startDt, endDt);
+        if (!isFinite(days) || days <= 0) {
+          addBtn.disabled = false;
+          addBtn.textContent = '{{ block.settings.add_to_rental_cart_label | default: "Add to rental cart" | escape }}';
+          alert('Return date must be after start date.');
+          return;
+        }
+
+        (async function () {
+          // Add to Shopify cart with line item properties (used by the cart transform function at checkout)
+          var payload = {
+            id: String(variantId),
+            quantity: u,
+            properties: {
+              rental_start: String(start),
+              rental_end: String(end),
+              rental_days: String(days)
+            }
+          };
+
+          try {
+            var resAdd = await fetch('/cart/add.js', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify(payload)
+            });
+            if (!resAdd.ok) throw new Error('Failed to add to cart');
+            var addedItem = null;
+            try { addedItem = await resAdd.json(); } catch (e) {}
+            var addedKey = addedItem && addedItem.key ? String(addedItem.key) : null;
+
+            // Reserve inventory in-app (no Order access required).
+            var reserveErr = null;
+            try {
+              var cartToken = null;
+              var totalUnitsForThisRange = u;
+              try {
+                var cartResp = await fetch('/cart.js', { credentials: 'same-origin' });
+                var cartJson = await cartResp.json();
+                if (cartJson && cartJson.token) cartToken = String(cartJson.token);
+                if (cartJson && Array.isArray(cartJson.items)) {
+                  var total = 0;
+                  for (var i = 0; i < cartJson.items.length; i++) {
+                    var it = cartJson.items[i];
+                    if (!it) continue;
+                    // Reserve at the *product* level (RentalItem keys by productId), so count all
+                    // variants for this product with the same rental date range.
+                    if (String(it.product_id) !== String(productId)) continue;
+                    var props = it.properties || {};
+                    if (String(props.rental_start || '') !== String(start)) continue;
+                    if (String(props.rental_end || '') !== String(end)) continue;
+                    total += Number(it.quantity || 0);
+                  }
+                  if (isFinite(total) && total > 0) totalUnitsForThisRange = total;
+                }
+              } catch (e) {}
+              if (!cartToken) {
+                var key = 'cottage_cart_token';
+                cartToken = localStorage.getItem(key);
+                if (!cartToken) {
+                  cartToken =
+                    (window.crypto && window.crypto.randomUUID)
+                      ? window.crypto.randomUUID()
+                      : (String(Date.now()) + '-' + String(Math.random()).slice(2));
+                  try { localStorage.setItem(key, cartToken); } catch (e) {}
+                }
+              }
+
+              // Persist cart token onto the line item so webhook handlers can reliably
+              // promote RESERVED(cart:<token>) to CONFIRMED on order paid.
+              if (addedKey) {
+                try {
+                  await fetch('/cart/change.js', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                      id: addedKey,
+                      quantity: u,
+                      properties: {
+                        rental_start: String(start),
+                        rental_end: String(end),
+                        rental_days: String(days),
+                        cottage_cart_token: String(cartToken)
+                      }
+                    })
+                  });
+                } catch (e) {}
+              }
+
+              var reserveResp = await fetch(appProxyUrl('/reserve'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                  product_id: String(productId),
+                  start_date: String(start),
+                  end_date: String(end),
+                  rental_days: String(days),
+                  units: totalUnitsForThisRange,
+                  cart_token: String(cartToken)
+                })
+              });
+              if (!reserveResp.ok) {
+                var err = null;
+                try { err = await reserveResp.json(); } catch (e) {}
+                var msg =
+                  (err && err.error) ? String(err.error) :
+                  ('Failed to reserve availability (status ' + String(reserveResp.status) + ').');
+                // Remove the just-added line so cart and calendar don't drift.
+                if (addedKey) {
+                  try {
+                    await fetch('/cart/change.js', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'same-origin',
+                      body: JSON.stringify({ id: addedKey, quantity: 0 })
+                    });
+                  } catch (e) {}
+                }
+                throw new Error(msg);
+              }
+            } catch (e) { reserveErr = e; }
+            if (reserveErr) throw reserveErr;
+            alert('Added to cart.');
+          } catch (e) {
+            alert(String(e && e.message ? e.message : e));
+          } finally {
+            addBtn.disabled = false;
+            addBtn.textContent = '{{ block.settings.add_to_rental_cart_label | default: "Add to rental cart" | escape }}';
+          }
+        })();
+      });
+
+      async function startCheckout() {
+        checkoutBtn.disabled = true;
+        checkoutBtn.textContent = 'Starting checkout…';
+        try {
+          // If dates are selected, add this rental to cart before going to checkout.
+          var u = 1;
+          var start = startInput.value;
+          var end = endInput.value;
+          var startDt = parseDateOnly(start);
+          var endDt = parseDateOnly(end);
+          if (!(startDt && endDt)) {
+            throw new Error('Please select a start date and a return date.');
+          }
+          if (startDt && endDt) {
+            var days = diffDaysInclusive(startDt, endDt);
+            if (isFinite(days) && days > 0) {
+              var payload = {
+                id: String(variantId),
+                quantity: u,
+                properties: {
+                  rental_start: String(start),
+                  rental_end: String(end),
+                  rental_days: String(days)
+                }
+              };
+
+              var resAdd = await fetch('/cart/add.js', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+              });
+              if (!resAdd.ok) throw new Error('Failed to add to cart');
+              var addedItem = null;
+              try { addedItem = await resAdd.json(); } catch (e) {}
+              var addedKey = addedItem && addedItem.key ? String(addedItem.key) : null;
+
+              // Reserve inventory in-app before redirecting to checkout.
+              var reserveErr = null;
+              try {
+                var cartToken = null;
+                var totalUnitsForThisRange = u;
+                try {
+                  var cartResp = await fetch('/cart.js', { credentials: 'same-origin' });
+                  var cartJson = await cartResp.json();
+                  if (cartJson && cartJson.token) cartToken = String(cartJson.token);
+                  if (cartJson && Array.isArray(cartJson.items)) {
+                    var total = 0;
+                    for (var i = 0; i < cartJson.items.length; i++) {
+                      var it = cartJson.items[i];
+                      if (!it) continue;
+                      // Reserve at the *product* level (RentalItem keys by productId), so count all
+                      // variants for this product with the same rental date range.
+                      if (String(it.product_id) !== String(productId)) continue;
+                      var props = it.properties || {};
+                      if (String(props.rental_start || '') !== String(start)) continue;
+                      if (String(props.rental_end || '') !== String(end)) continue;
+                      total += Number(it.quantity || 0);
+                    }
+                    if (isFinite(total) && total > 0) totalUnitsForThisRange = total;
+                  }
+                } catch (e) {}
+                if (!cartToken) {
+                  var key = 'cottage_cart_token';
+                  cartToken = localStorage.getItem(key);
+                  if (!cartToken) {
+                    cartToken =
+                      (window.crypto && window.crypto.randomUUID)
+                        ? window.crypto.randomUUID()
+                        : (String(Date.now()) + '-' + String(Math.random()).slice(2));
+                    try { localStorage.setItem(key, cartToken); } catch (e) {}
+                  }
+                }
+
+                // Persist cart token onto the line item so webhook handlers can reliably
+                // promote RESERVED(cart:<token>) to CONFIRMED on order paid.
+                if (addedKey) {
+                  try {
+                    await fetch('/cart/change.js', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'same-origin',
+                      body: JSON.stringify({
+                        id: addedKey,
+                        quantity: u,
+                        properties: {
+                          rental_start: String(start),
+                          rental_end: String(end),
+                          rental_days: String(days),
+                          cottage_cart_token: String(cartToken)
+                        }
+                      })
+                    });
+                  } catch (e) {}
+                }
+
+                var reserveResp = await fetch(appProxyUrl('/reserve'), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'same-origin',
+                  body: JSON.stringify({
+                    product_id: String(productId),
+                    start_date: String(start),
+                    end_date: String(end),
+                    rental_days: String(days),
+                    units: totalUnitsForThisRange,
+                    cart_token: String(cartToken)
+                  })
+                });
+                if (!reserveResp.ok) {
+                  var err = null;
+                  try { err = await reserveResp.json(); } catch (e) {}
+                  var msg =
+                    (err && err.error) ? String(err.error) :
+                    ('Failed to reserve availability (status ' + String(reserveResp.status) + ').');
+                  if (addedKey) {
+                    try {
+                      await fetch('/cart/change.js', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ id: addedKey, quantity: 0 })
+                      });
+                    } catch (e) {}
+                  }
+                  throw new Error(msg);
+                }
+              } catch (e) { reserveErr = e; }
+              if (reserveErr) throw reserveErr;
+            }
+          }
+
+          window.location.href = '/checkout';
+        } catch (e) {
+          alert(String(e && e.message ? e.message : e));
+        } finally {
+          checkoutBtn.disabled = false;
+          checkoutBtn.textContent = '{{ block.settings.checkout_label | default: "Checkout rentals" | escape }}';
+          renderCalendar();
+        }
+      }
+
+      clearBtn.addEventListener('click', clearDates);
+      if (checkoutBtn) checkoutBtn.addEventListener('click', startCheckout);
+
+      startInput.addEventListener('change', function () {
+        renderCalendar();
+      });
+      endInput.addEventListener('change', function () {
+        renderCalendar();
+      });
+
+      prevBtn.addEventListener('click', function () {
+        view = new Date(view.getFullYear(), view.getMonth() - 1, 1);
+        renderCalendar();
+      });
+      nextBtn.addEventListener('click', function () {
+        view = new Date(view.getFullYear(), view.getMonth() + 1, 1);
+        renderCalendar();
+      });
+
+      renderCalendar();
+    })();
+  </script>
+</div>
+
+{% schema %}
+{
+  "name": "Rental calendar",
+  "target": "section",
+  "enabled_on": { "templates": ["product"] },
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Select rental dates" },
+    { "type": "text", "id": "app_proxy_base_path", "label": "App proxy base path", "default": "/apps/rental", "info": "Must match your store's App proxy URL (e.g. /apps/rental or /apps/rental-1)." },
+    { "type": "text", "id": "start_label", "label": "Start date label", "default": "Start date" },
+    { "type": "text", "id": "end_label", "label": "Return date label", "default": "Return date" },
+    { "type": "text", "id": "add_to_rental_cart_label", "label": "Add button label", "default": "Add to rental cart" },
+    { "type": "text", "id": "checkout_label", "label": "Checkout button label", "default": "Checkout rentals" },
+    { "type": "text", "id": "clear_label", "label": "Clear button label", "default": "Clear dates" },
+    { "type": "textarea", "id": "help_text", "label": "Help text", "default": "Pick a start date and a return date. The selected days are highlighted in the calendar." }
+  ]
+}
+{% endschema %}

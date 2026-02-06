@@ -1,0 +1,28 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "4946d227750cc0b1f8e81f7b7a786c91"
+name = "CottageToys Products"
+# Must be a valid URL. With `automatically_update_urls_on_dev = true`, Shopify CLI updates
+# the dev store's app URL to the current tunnel while running `shopify app dev`.
+application_url = "https://example.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-04"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_cart_transforms,read_inventory,read_orders,read_products,write_cart_transforms,write_products,write_app_proxy"
+
+[auth]
+redirect_urls = [
+  "https://example.com/auth/callback"
+]
+
+[app_proxy]
+url = "/apps/rental"
+subpath = "rental"
+prefix = "apps"

@@ -1,0 +1,9 @@
+api_version = "2024-10"
+
+[[extensions]]
+
+uid = "f001df48-e743-5b5b-b3ff-92c0aa1064d368e6d017"
+
+type = "theme"
+name = "CottageToys price input"
+handle = "price-input"

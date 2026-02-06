@@ -1,0 +1,14 @@
+{
+  "rental_calendar": {
+    "heading": { "label": "Heading" },
+    "base_label": { "label": "Base label" },
+    "start_label": { "label": "Start date label" },
+    "end_label": { "label": "Return date label" },
+    "units_label": { "label": "Quantity label" },
+    "days_label": { "label": "Days label" },
+    "total_label": { "label": "Total label" },
+    "add_to_rental_cart_label": { "label": "Add button label" },
+    "clear_label": { "label": "Clear button label" },
+    "help_text": { "label": "Help text" }
+  }
+}
