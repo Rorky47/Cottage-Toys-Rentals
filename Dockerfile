@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:20-alpine
 RUN apk add --no-cache openssl
 
 EXPOSE 3000
@@ -7,7 +7,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Copy package files and Prisma schema so postinstall (prisma generate) can run
 COPY package.json package-lock.json ./
+COPY prisma ./prisma
 
 RUN npm ci --omit=dev && npm cache clean --force
 # Remove CLI packages since we don't need them in production by default.
