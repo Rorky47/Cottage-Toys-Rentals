@@ -7,12 +7,17 @@ function addCorsHeaders(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set("Access-Control-Allow-Origin", "*");
   headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  headers.set("Access-Control-Allow-Headers", "Content-Type");
+  headers.set("Access-Control-Allow-Headers", "Content-Type, X-Requested-With");
+  headers.set("Access-Control-Max-Age", "86400");
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
     headers,
   });
+}
+
+function createCorsResponse(body: any, init?: ResponseInit): Response {
+  return addCorsHeaders(json(body, init));
 }
 
 function logAppProxyRequest(args: { request: Request; proxy: string }) {
@@ -41,35 +46,47 @@ function validateRequest(request: Request): boolean {
 
 export const loader = async (args: LoaderFunctionArgs) => {
   const proxy = args.params.proxy ?? "";
+  
+  // Handle OPTIONS preflight requests
+  if (args.request.method === "OPTIONS") {
+    return addCorsHeaders(new Response(null, { status: 204 }));
+  }
+  
   logAppProxyRequest({ request: args.request, proxy });
   
   // Validate signature for all requests except ping (useful for monitoring)
   if (proxy !== "ping" && !validateRequest(args.request)) {
     console.warn(`[app-proxy] Invalid signature for ${proxy}`);
-    return json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return createCorsResponse({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   
   if (proxy === "ping") {
-    return addCorsHeaders(json({ ok: true, proxy }));
+    return createCorsResponse({ ok: true, proxy });
   }
   if (proxy === "quote") {
     const response = await quoteLoader(args);
     return addCorsHeaders(response);
   }
   if (proxy === "reserve" || proxy === "checkout") {
-    return addCorsHeaders(new Response("Method Not Allowed", { status: 405 }));
+    return createCorsResponse({ ok: false, error: "Method Not Allowed" }, { status: 405 });
   }
-  throw new Response("Not Found", { status: 404 });
+  return createCorsResponse({ ok: false, error: "Not Found" }, { status: 404 });
 };
 
 export const action = async (args: ActionFunctionArgs) => {
   const proxy = args.params.proxy ?? "";
+  
+  // Handle OPTIONS preflight requests
+  if (args.request.method === "OPTIONS") {
+    return addCorsHeaders(new Response(null, { status: 204 }));
+  }
+  
   logAppProxyRequest({ request: args.request, proxy });
   
   // Validate signature for all POST actions
   if (!validateRequest(args.request)) {
     console.warn(`[app-proxy] Invalid signature for POST ${proxy}`);
-    return json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return createCorsResponse({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   
   if (proxy === "reserve") {
@@ -80,6 +97,6 @@ export const action = async (args: ActionFunctionArgs) => {
     const response = await checkoutAction(args);
     return addCorsHeaders(response);
   }
-  return addCorsHeaders(new Response("Not Found", { status: 404 }));
+  return createCorsResponse({ ok: false, error: "Not Found" }, { status: 404 });
 };
 
