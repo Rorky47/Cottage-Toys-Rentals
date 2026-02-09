@@ -3,6 +3,18 @@ import { json } from "@remix-run/node";
 import { checkoutAction, quoteLoader, reserveAction } from "~/rental";
 import { validateAppProxySignature } from "~/utils/appProxyAuth";
 
+function addCorsHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  headers.set("Access-Control-Allow-Headers", "Content-Type");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 function logAppProxyRequest(args: { request: Request; proxy: string }) {
   try {
     const url = new URL(args.request.url);
@@ -38,13 +50,14 @@ export const loader = async (args: LoaderFunctionArgs) => {
   }
   
   if (proxy === "ping") {
-    return json({ ok: true, proxy });
+    return addCorsHeaders(json({ ok: true, proxy }));
   }
   if (proxy === "quote") {
-    return quoteLoader(args);
+    const response = await quoteLoader(args);
+    return addCorsHeaders(response);
   }
   if (proxy === "reserve" || proxy === "checkout") {
-    return new Response("Method Not Allowed", { status: 405 });
+    return addCorsHeaders(new Response("Method Not Allowed", { status: 405 }));
   }
   throw new Response("Not Found", { status: 404 });
 };
@@ -60,11 +73,13 @@ export const action = async (args: ActionFunctionArgs) => {
   }
   
   if (proxy === "reserve") {
-    return reserveAction(args);
+    const response = await reserveAction(args);
+    return addCorsHeaders(response);
   }
   if (proxy === "checkout") {
-    return checkoutAction(args);
+    const response = await checkoutAction(args);
+    return addCorsHeaders(response);
   }
-  return new Response("Not Found", { status: 404 });
+  return addCorsHeaders(new Response("Not Found", { status: 404 }));
 };
 
