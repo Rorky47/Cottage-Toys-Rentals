@@ -2,12 +2,12 @@
 
 client_id = "6da922feebb528947e305bd06900679e"
 name = "NDS:RentalRates"
-application_url = "https://example.com"
+application_url = "https://cottage-toys-rentals-production.up.railway.app"
+
 embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2026-04"
