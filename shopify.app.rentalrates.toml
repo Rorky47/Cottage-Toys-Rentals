@@ -17,4 +17,4 @@ api_version = "2026-04"
 scopes = "read_cart_transforms,read_inventory,read_orders,read_products,write_app_proxy,write_cart_transforms,write_products"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://cottage-toys-rentals-production.up.railway.app/api/auth" ]
