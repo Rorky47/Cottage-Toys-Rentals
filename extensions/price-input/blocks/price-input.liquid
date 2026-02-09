@@ -7,7 +7,7 @@
   data-today="{{ 'now' | date: '%Y-%m-%d' }}"
   data-currency="{{ shop.currency }}"
   data-shop-domain="{{ shop.permanent_domain }}"
-  data-app-proxy-base-path="{{ block.settings.app_proxy_base_path | default: '/apps/rental' }}"
+  data-app-proxy-base-path="{{ block.settings.app_proxy_base_path | default: '/apps/nds-rentalrates/app' }}"
 >
   <style>
     .cottage-rental-calendar {
@@ -230,7 +230,7 @@
       }
       function normalizeProxyBasePath(raw) {
         var s = String(raw || '').trim();
-        if (!s) return '/apps/rental';
+        if (!s) return '/apps/nds-rentalrates/app';
         if (!s.startsWith('/')) s = '/' + s;
         // remove trailing slash
         if (s.length > 1 && s.endsWith('/')) s = s.slice(0, -1);
