@@ -83,7 +83,7 @@ export default defineConfig({
             route("", "routes/app._index/route.tsx", { index: true });
             route(":page", "routes/app/$page.tsx");
           });
-          route("apps/rental/:proxy", "routes/apps.rental.$proxy.tsx");
+          route("apps/nds-rentalrates/app/:proxy", "routes/apps.nds-rentalrates.app.$proxy.tsx");
           route("auth/login", "routes/auth/login/route.tsx");
           route("auth/*", "routes/auth/$.tsx");
           route("webhooks/:topic/:subtopic", "routes/webhooks/$topic/$subtopic.tsx");
