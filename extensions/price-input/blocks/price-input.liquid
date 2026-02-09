@@ -7,7 +7,7 @@
   data-today="{{ 'now' | date: '%Y-%m-%d' }}"
   data-currency="{{ shop.currency }}"
   data-shop-domain="{{ shop.permanent_domain }}"
-  data-app-proxy-base-path="{{ block.settings.app_proxy_base_path | default: '/apps/nds-rentalrates/app' }}"
+  data-app-proxy-base-path="{{ block.settings.app_proxy_base_path | default: '/apps/nds-rentalrates-app' }}"
 >
   <style>
     .cottage-rental-calendar {
@@ -696,7 +696,7 @@
   "enabled_on": { "templates": ["product"] },
   "settings": [
     { "type": "text", "id": "heading", "label": "Heading", "default": "Select rental dates" },
-    { "type": "text", "id": "app_proxy_base_path", "label": "App proxy base path", "default": "/apps/nds-rentalrates/app", "info": "Must match your store's App proxy URL (e.g. /apps/nds-rentalrates/app)." },
+    { "type": "text", "id": "app_proxy_base_path", "label": "App proxy base path", "default": "/apps/nds-rentalrates-app", "info": "Must match your store's App proxy URL (e.g. /apps/nds-rentalrates-app)." },
     { "type": "text", "id": "start_label", "label": "Start date label", "default": "Start date" },
     { "type": "text", "id": "end_label", "label": "Return date label", "default": "Return date" },
     { "type": "text", "id": "add_to_rental_cart_label", "label": "Add button label", "default": "Add to rental cart" },
