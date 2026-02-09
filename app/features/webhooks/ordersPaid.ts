@@ -41,60 +41,61 @@ function inferFulfillmentMethodFromOrder(order: any): "SHIP" | "PICKUP" | "UNKNO
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, payload, topic } = await authenticate.webhook(request);
-  console.log(`Received ${topic} webhook for ${shop}`);
+  try {
+    const { shop, payload, topic } = await authenticate.webhook(request);
+    console.log(`Received ${topic} webhook for ${shop}`);
 
-  const order = payload as any;
-  const orderId = String(order?.id ?? order?.admin_graphql_api_id ?? "");
-  const currency = String(order?.currency ?? "USD");
-  const fulfillmentMethod = inferFulfillmentMethodFromOrder(order);
-  const cartToken = String(
-    order?.cart_token ?? order?.cartToken ?? order?.checkout_token ?? order?.checkoutToken ?? "",
-  );
+    const order = payload as any;
+    const orderId = String(order?.id ?? order?.admin_graphql_api_id ?? "");
+    const currency = String(order?.currency ?? "USD");
+    const fulfillmentMethod = inferFulfillmentMethodFromOrder(order);
+    const cartToken = String(
+      order?.cart_token ?? order?.cartToken ?? order?.checkout_token ?? order?.checkoutToken ?? "",
+    );
 
-  const lineItems = (order?.line_items as any[]) ?? [];
+    const lineItems = (order?.line_items as any[]) ?? [];
 
-  // Aggregate quantity by (productId, start, end) so we confirm the right units even if checkout
-  // has multiple lines for the same rental range.
-  const aggregated = new Map<
-    RentalLineKey,
-    {
-      productId: string;
-      start: string;
-      end: string;
-      units: number;
-      title: string | null;
-      unitPriceStr: string | null;
-      cartToken: string | null;
+    // Aggregate quantity by (productId, start, end) so we confirm the right units even if checkout
+    // has multiple lines for the same rental range.
+    const aggregated = new Map<
+      RentalLineKey,
+      {
+        productId: string;
+        start: string;
+        end: string;
+        units: number;
+        title: string | null;
+        unitPriceStr: string | null;
+        cartToken: string | null;
+      }
+    >();
+
+    for (const li of lineItems) {
+      const props = (li?.properties as LineItemProperty[]) ?? undefined;
+      const rentalStart = getProperty(props, "rental_start");
+      const rentalEnd = getProperty(props, "rental_end");
+      const lineCartToken = getProperty(props, "cottage_cart_token") ?? null;
+
+      if (!rentalStart || !rentalEnd) continue; // not a rental line
+
+      const productId = li?.product_id;
+      if (!productId) continue;
+
+      const units = Math.floor(Number(li?.quantity ?? 1));
+      if (!Number.isFinite(units) || units <= 0) continue;
+
+      const key = makeRentalLineKey(String(productId), rentalStart, rentalEnd);
+      const prev = aggregated.get(key);
+      aggregated.set(key, {
+        productId: String(productId),
+        start: rentalStart,
+        end: rentalEnd,
+        units: (prev?.units ?? 0) + units,
+        title: prev?.title ?? (typeof li?.title === "string" ? li.title : null),
+        unitPriceStr: prev?.unitPriceStr ?? (li?.price != null ? String(li.price) : null),
+        cartToken: prev?.cartToken ?? lineCartToken ?? (cartToken ? cartToken : null),
+      });
     }
-  >();
-
-  for (const li of lineItems) {
-    const props = (li?.properties as LineItemProperty[]) ?? undefined;
-    const rentalStart = getProperty(props, "rental_start");
-    const rentalEnd = getProperty(props, "rental_end");
-    const lineCartToken = getProperty(props, "cottage_cart_token") ?? null;
-
-    if (!rentalStart || !rentalEnd) continue; // not a rental line
-
-    const productId = li?.product_id;
-    if (!productId) continue;
-
-    const units = Math.floor(Number(li?.quantity ?? 1));
-    if (!Number.isFinite(units) || units <= 0) continue;
-
-    const key = makeRentalLineKey(String(productId), rentalStart, rentalEnd);
-    const prev = aggregated.get(key);
-    aggregated.set(key, {
-      productId: String(productId),
-      start: rentalStart,
-      end: rentalEnd,
-      units: (prev?.units ?? 0) + units,
-      title: prev?.title ?? (typeof li?.title === "string" ? li.title : null),
-      unitPriceStr: prev?.unitPriceStr ?? (li?.price != null ? String(li.price) : null),
-      cartToken: prev?.cartToken ?? lineCartToken ?? (cartToken ? cartToken : null),
-    });
-  }
 
   for (const entry of aggregated.values()) {
     let rentalDays = 0;
@@ -177,6 +178,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
-  return new Response();
+  return new Response(null, { status: 200 });
+} catch (error) {
+  console.error(`[webhook] ORDERS_PAID failed for ${(error as any)?.shop ?? "unknown"}:`, error);
+  // Return 500 so Shopify will retry the webhook
+  return new Response("Internal Server Error", { status: 500 });
+}
 };
 
