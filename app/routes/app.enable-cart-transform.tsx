@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, useActionData, useLoaderData } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useSubmit } from "@remix-run/react";
 import { authenticate } from "~/shopify";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -51,7 +51,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    // Enable the cart transform
+    // Enable the cart transform using the correct mutation
     const response = await admin.graphql(
       `#graphql
         mutation cartTransformCreate($functionId: String!) {
@@ -78,32 +78,63 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const userErrors = data?.data?.cartTransformCreate?.userErrors ?? [];
 
     if (userErrors.length > 0) {
-      return json({ error: userErrors[0].message, raw: data });
+      return json({ success: false, error: userErrors[0].message, raw: data });
     }
 
-    return json({ success: true, data: data?.data?.cartTransformCreate });
+    const cartTransform = data?.data?.cartTransformCreate?.cartTransform;
+    if (!cartTransform) {
+      return json({ success: false, error: "Failed to create cart transform", raw: data });
+    }
+
+    return json({ success: true, cartTransform, message: "Cart transform function is now active!" });
   } catch (error: any) {
-    return json({ error: error.message ?? String(error) }, { status: 500 });
+    return json({ success: false, error: error.message ?? String(error) }, { status: 500 });
   }
 };
 
 export default function EnableCartTransform() {
   const loaderData = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
+  const submit = useSubmit();
 
   const cartTransformFunction = loaderData.functions.find((f: any) => 
     f.title?.toLowerCase().includes("cart") || 
     f.title?.toLowerCase().includes("multiplier")
   );
 
+  const handleActivate = () => {
+    if (!cartTransformFunction) return;
+    
+    const formData = new FormData();
+    formData.append("functionId", cartTransformFunction.id);
+    submit(formData, { method: "post" });
+  };
+
   return (
     <div style={{ padding: "20px", maxWidth: "800px", margin: "0 auto", fontFamily: "system-ui" }}>
-      <h1>Cart Transform Function Status</h1>
+      <h1>Cart Transform Function Activation</h1>
 
       {loaderData.error && (
         <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#fff3cd", borderRadius: "8px", border: "2px solid #ffc107" }}>
           <strong>⚠️ API Error:</strong>
           <p>{loaderData.error}</p>
+        </div>
+      )}
+
+      {actionData?.success && (
+        <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#d4edda", borderRadius: "8px", border: "2px solid #28a745" }}>
+          <strong>✅ Success!</strong>
+          <p>{actionData.message}</p>
+          {actionData.cartTransform?.id && (
+            <p><small>Cart Transform ID: {actionData.cartTransform.id}</small></p>
+          )}
+        </div>
+      )}
+
+      {actionData?.error && (
+        <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#f8d7da", borderRadius: "8px", border: "2px solid #dc3545" }}>
+          <strong>❌ Error:</strong>
+          <p>{actionData.error}</p>
         </div>
       )}
 
@@ -114,7 +145,7 @@ export default function EnableCartTransform() {
             <p style={{ color: "red" }}>
               ❌ <strong>No cart transform functions found</strong>
             </p>
-            <p>This means the function wasn't deployed to Shopify or wasn't recognized.</p>
+            <p>Run <code>shopify app deploy</code> to deploy the function first.</p>
           </div>
         ) : (
           <ul>
@@ -131,54 +162,30 @@ export default function EnableCartTransform() {
         )}
       </div>
 
-      {loaderData.functions.length === 0 && (
-        <div style={{ padding: "20px", backgroundColor: "#fef1f1", borderRadius: "8px", border: "2px solid #d72c0d" }}>
-          <h3>❌ Problem: Function Not Deployed</h3>
-          <p>The cart transform function needs to be deployed to Shopify. It should have been deployed when you ran <code>shopify app deploy</code>.</p>
-          
-          <h4>Possible Issues:</h4>
-          <ol>
-            <li><strong>Function build failed</strong> - Check if the .wasm file exists at <code>extensions/cart-multiplier-function/dist/index.wasm</code></li>
-            <li><strong>Deployment didn't include the function</strong> - The function might have been skipped during deploy</li>
-            <li><strong>App doesn't have function permissions</strong> - The app needs proper scopes</li>
-          </ol>
-
-          <h4>Manual Activation Steps:</h4>
-          <p>Since the automated deployment isn't working, you need to manually enable it:</p>
-          <ol>
-            <li>Go to Shopify Admin → Settings → Checkout</li>
-            <li>Look for "Customizations" section</li>
-            <li>Under "Cart and checkout validations", click "Add customization"</li>
-            <li>Select your app's cart transform function</li>
-            <li>Enable it</li>
-          </ol>
-
-          <p><strong>OR check your Shopify Partner Dashboard:</strong></p>
-          <ul>
-            <li>Go to: <a href="https://partners.shopify.com/129136928/apps/321275789313" target="_blank">Partner Dashboard</a></li>
-            <li>Look for Extensions/Functions tab</li>
-            <li>See if "Cart price multiplier" is listed</li>
-            <li>Click to view/enable it</li>
-          </ul>
-        </div>
-      )}
-
-      {cartTransformFunction && (
+      {cartTransformFunction && !actionData?.success && (
         <div style={{ marginBottom: "30px", padding: "20px", backgroundColor: "#e7f5ec", borderRadius: "8px", border: "2px solid #008060" }}>
           <h3>✅ Cart Transform Function Found!</h3>
-          <p><strong>{cartTransformFunction.title}</strong> is deployed to Shopify.</p>
+          <p><strong>{cartTransformFunction.title}</strong> is deployed.</p>
           
-          <h4>Next Step: Enable it in Shopify Admin</h4>
-          <ol>
-            <li>Go to: <a href="https://cottage-toys-canada.myshopify.com/admin/settings/checkout" target="_blank">Settings → Checkout</a></li>
-            <li>Scroll to find the customizations section</li>
-            <li>Look for "{cartTransformFunction.title}" or cart validation options</li>
-            <li>Enable/activate it</li>
-          </ol>
-          
-          <p style={{ marginTop: "15px", padding: "10px", backgroundColor: "#fff", borderRadius: "4px" }}>
-            <strong>Note:</strong> The GraphQL API we're using doesn't support automatically enabling cart transforms via code. 
-            You must enable it through the Shopify Admin UI.
+          <button 
+            onClick={handleActivate}
+            style={{
+              marginTop: "15px",
+              padding: "12px 24px",
+              backgroundColor: "#008060",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "16px",
+              fontWeight: "600",
+              cursor: "pointer"
+            }}
+          >
+            🚀 Activate Cart Transform Function
+          </button>
+
+          <p style={{ marginTop: "15px", fontSize: "14px", color: "#666" }}>
+            This will call the <code>cartTransformCreate</code> GraphQL mutation to enable the function.
           </p>
         </div>
       )}
@@ -186,7 +193,7 @@ export default function EnableCartTransform() {
       <details style={{ marginTop: "20px" }}>
         <summary>Raw API Response (Debug)</summary>
         <pre style={{ fontSize: "12px", overflow: "auto", backgroundColor: "#f5f5f5", padding: "10px", borderRadius: "4px" }}>
-          {JSON.stringify(loaderData.raw, null, 2)}
+          {JSON.stringify({ loader: loaderData.raw, action: actionData }, null, 2)}
         </pre>
       </details>
     </div>
