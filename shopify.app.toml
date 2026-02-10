@@ -21,6 +21,6 @@ redirect_urls = [
 ]
 
 [app_proxy]
-url = "https://cottage-toys-rentals-production.up.railway.app"
+url = "https://cottage-toys-rentals-production.up.railway.app/apps/nds-rentalrates-app"
 subpath = "nds-rentalrates-app"
 prefix = "apps"
