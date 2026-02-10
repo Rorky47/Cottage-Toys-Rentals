@@ -47,11 +47,6 @@ function validateRequest(request: Request): boolean {
 export const loader = async (args: LoaderFunctionArgs) => {
   const proxy = args.params.proxy ?? "";
   
-  // Handle OPTIONS preflight requests
-  if (args.request.method === "OPTIONS") {
-    return addCorsHeaders(new Response(null, { status: 204 }));
-  }
-  
   logAppProxyRequest({ request: args.request, proxy });
   
   // Validate signature for all requests except ping (useful for monitoring)
@@ -75,11 +70,6 @@ export const loader = async (args: LoaderFunctionArgs) => {
 
 export const action = async (args: ActionFunctionArgs) => {
   const proxy = args.params.proxy ?? "";
-  
-  // Handle OPTIONS preflight requests
-  if (args.request.method === "OPTIONS") {
-    return addCorsHeaders(new Response(null, { status: 204 }));
-  }
   
   logAppProxyRequest({ request: args.request, proxy });
   
