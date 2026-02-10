@@ -1,0 +1,24 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "ba53093f3116c25858a8338c16e365c7"
+name = "NDS:RentalRates"
+application_url = "https://cottage-toys-rentals-production.up.railway.app"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-04"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_cart_transforms,read_inventory,read_orders,read_products,write_app_proxy,write_cart_transforms,write_products"
+
+[auth]
+redirect_urls = [ "https://cottage-toys-rentals-production.up.railway.app/api/auth" ]
+
+[app_proxy]
+url = "https://cottage-toys-rentals-production.up.railway.app/apps/nds-rentalrates-app"
+subpath = "nds-rentalrates-app"
+prefix = "apps"
