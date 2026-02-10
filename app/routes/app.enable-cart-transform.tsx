@@ -6,35 +6,39 @@ import { authenticate } from "~/shopify";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
-  // Check for existing cart transform
-  const response = await admin.graphql(
-    `#graphql
-      query {
-        cartTransform {
-          id
-          functionId
-          metafield(namespace: "cart_transform", key: "function") {
-            value
+  try {
+    // Just query for functions - simpler approach
+    const response = await admin.graphql(
+      `#graphql
+        query {
+          shopifyFunctions(first: 20, apiType: CART_TRANSFORM) {
+            nodes {
+              id
+              apiType
+              title
+              apiVersion
+              app {
+                title
+              }
+            }
           }
         }
-        shopifyFunctions(first: 20, apiType: CART_TRANSFORM) {
-          nodes {
-            id
-            apiType
-            title
-            apiVersion
-          }
-        }
-      }
-    `
-  );
+      `
+    );
 
-  const data = await response.json();
-  return json({
-    cartTransform: data?.data?.cartTransform,
-    functions: data?.data?.shopifyFunctions?.nodes ?? [],
-    raw: data,
-  });
+    const data = await response.json();
+    return json({
+      functions: data?.data?.shopifyFunctions?.nodes ?? [],
+      error: null,
+      raw: data,
+    });
+  } catch (error: any) {
+    return json({
+      functions: [],
+      error: error.message ?? String(error),
+      raw: null,
+    });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -94,114 +98,90 @@ export default function EnableCartTransform() {
 
   return (
     <div style={{ padding: "20px", maxWidth: "800px", margin: "0 auto", fontFamily: "system-ui" }}>
-      <h1>Enable Cart Transform Function</h1>
+      <h1>Cart Transform Function Status</h1>
 
-      <div style={{ marginBottom: "30px", padding: "15px", backgroundColor: "#f0f0f0", borderRadius: "8px" }}>
-        <h2>Current Status:</h2>
-        {loaderData.cartTransform ? (
-          <div style={{ color: "green" }}>
-            ✅ <strong>Cart Transform is ENABLED</strong>
-            <br />
-            Function ID: {loaderData.cartTransform.functionId}
-          </div>
-        ) : (
-          <div style={{ color: "red" }}>
-            ❌ <strong>Cart Transform is NOT ENABLED</strong>
-            <br />
-            This is why pricing isn't being calculated in the cart!
-          </div>
-        )}
-      </div>
+      {loaderData.error && (
+        <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#fff3cd", borderRadius: "8px", border: "2px solid #ffc107" }}>
+          <strong>⚠️ API Error:</strong>
+          <p>{loaderData.error}</p>
+        </div>
+      )}
 
       <div style={{ marginBottom: "30px", padding: "15px", backgroundColor: "#f9f9f9", borderRadius: "8px" }}>
-        <h2>Available Functions:</h2>
+        <h2>Available Cart Transform Functions:</h2>
         {loaderData.functions.length === 0 ? (
-          <p style={{ color: "orange" }}>
-            ⚠️ No cart transform functions found. This means the function wasn't deployed properly.
-          </p>
+          <div>
+            <p style={{ color: "red" }}>
+              ❌ <strong>No cart transform functions found</strong>
+            </p>
+            <p>This means the function wasn't deployed to Shopify or wasn't recognized.</p>
+          </div>
         ) : (
           <ul>
             {loaderData.functions.map((fn: any) => (
               <li key={fn.id} style={{ marginBottom: "10px" }}>
-                <strong>{fn.title}</strong>
+                <strong>{fn.title}</strong> ({fn.app?.title})
                 <br />
                 <small>ID: {fn.id}</small>
                 <br />
-                <small>API Type: {fn.apiType}</small>
+                <small>API Version: {fn.apiVersion}</small>
               </li>
             ))}
           </ul>
         )}
       </div>
 
-      {cartTransformFunction && !loaderData.cartTransform && (
-        <div style={{ marginBottom: "30px" }}>
-          <h2>Enable the Function:</h2>
-          <Form method="post">
-            <input type="hidden" name="functionId" value={cartTransformFunction.id} />
-            <button
-              type="submit"
-              style={{
-                padding: "12px 24px",
-                fontSize: "16px",
-                backgroundColor: "#008060",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontWeight: "600",
-              }}
-            >
-              ✅ Enable Cart Transform Function
-            </button>
-          </Form>
-          <p style={{ fontSize: "14px", color: "#666", marginTop: "8px" }}>
-            This will activate "{cartTransformFunction.title}" for your store
+      {loaderData.functions.length === 0 && (
+        <div style={{ padding: "20px", backgroundColor: "#fef1f1", borderRadius: "8px", border: "2px solid #d72c0d" }}>
+          <h3>❌ Problem: Function Not Deployed</h3>
+          <p>The cart transform function needs to be deployed to Shopify. It should have been deployed when you ran <code>shopify app deploy</code>.</p>
+          
+          <h4>Possible Issues:</h4>
+          <ol>
+            <li><strong>Function build failed</strong> - Check if the .wasm file exists at <code>extensions/cart-multiplier-function/dist/index.wasm</code></li>
+            <li><strong>Deployment didn't include the function</strong> - The function might have been skipped during deploy</li>
+            <li><strong>App doesn't have function permissions</strong> - The app needs proper scopes</li>
+          </ol>
+
+          <h4>Manual Activation Steps:</h4>
+          <p>Since the automated deployment isn't working, you need to manually enable it:</p>
+          <ol>
+            <li>Go to Shopify Admin → Settings → Checkout</li>
+            <li>Look for "Customizations" section</li>
+            <li>Under "Cart and checkout validations", click "Add customization"</li>
+            <li>Select your app's cart transform function</li>
+            <li>Enable it</li>
+          </ol>
+
+          <p><strong>OR check your Shopify Partner Dashboard:</strong></p>
+          <ul>
+            <li>Go to: <a href="https://partners.shopify.com/129136928/apps/321275789313" target="_blank">Partner Dashboard</a></li>
+            <li>Look for Extensions/Functions tab</li>
+            <li>See if "Cart price multiplier" is listed</li>
+            <li>Click to view/enable it</li>
+          </ul>
+        </div>
+      )}
+
+      {cartTransformFunction && (
+        <div style={{ marginBottom: "30px", padding: "20px", backgroundColor: "#e7f5ec", borderRadius: "8px", border: "2px solid #008060" }}>
+          <h3>✅ Cart Transform Function Found!</h3>
+          <p><strong>{cartTransformFunction.title}</strong> is deployed to Shopify.</p>
+          
+          <h4>Next Step: Enable it in Shopify Admin</h4>
+          <ol>
+            <li>Go to: <a href="https://cottage-toys-canada.myshopify.com/admin/settings/checkout" target="_blank">Settings → Checkout</a></li>
+            <li>Scroll to find the customizations section</li>
+            <li>Look for "{cartTransformFunction.title}" or cart validation options</li>
+            <li>Enable/activate it</li>
+          </ol>
+          
+          <p style={{ marginTop: "15px", padding: "10px", backgroundColor: "#fff", borderRadius: "4px" }}>
+            <strong>Note:</strong> The GraphQL API we're using doesn't support automatically enabling cart transforms via code. 
+            You must enable it through the Shopify Admin UI.
           </p>
         </div>
       )}
-
-      {actionData && (
-        <div
-          style={{
-            marginTop: "20px",
-            padding: "15px",
-            borderRadius: "8px",
-            backgroundColor: actionData.success ? "#e7f5ec" : "#fef1f1",
-            border: `2px solid ${actionData.success ? "#008060" : "#d72c0d"}`,
-          }}
-        >
-          {actionData.success ? (
-            <div style={{ color: "#008060" }}>
-              <strong>✅ Success!</strong>
-              <p>Cart transform function is now enabled. Test your checkout - prices should now be calculated correctly!</p>
-            </div>
-          ) : (
-            <div style={{ color: "#d72c0d" }}>
-              <strong>❌ Error:</strong>
-              <p>{actionData.error}</p>
-              {actionData.raw && (
-                <details>
-                  <summary>Raw response</summary>
-                  <pre style={{ fontSize: "12px", overflow: "auto" }}>
-                    {JSON.stringify(actionData.raw, null, 2)}
-                  </pre>
-                </details>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div style={{ marginTop: "40px", padding: "15px", backgroundColor: "#fff3cd", borderRadius: "8px" }}>
-        <h3>⚠️ If No Functions Are Listed Above:</h3>
-        <p>The cart transform function might not be deployed. Try running:</p>
-        <pre style={{ backgroundColor: "#000", color: "#0f0", padding: "10px", borderRadius: "4px" }}>
-          cd ~/Documents/Programming/Cottage-Toys-Rentals
-          <br />
-          shopify app deploy -c rentalrates --force
-        </pre>
-      </div>
 
       <details style={{ marginTop: "20px" }}>
         <summary>Raw API Response (Debug)</summary>
