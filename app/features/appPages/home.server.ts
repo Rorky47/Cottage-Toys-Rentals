@@ -407,6 +407,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { ok: true, action: "tier_removed" };
   }
 
+  if (intent === "resync_all_metafields") {
+    const rentalItems = await prisma.rentalItem.findMany({
+      where: { shop: session.shop },
+      include: { rateTiers: { orderBy: { minDays: "asc" } } },
+    });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const item of rentalItems) {
+      const syncResult = await syncPricingMetafieldBestEffort({
+        admin,
+        shopifyProductId: item.shopifyProductId,
+        basePricePerDayCents: item.basePricePerDayCents,
+        tiers: item.rateTiers.map((t) => ({ minDays: t.minDays, pricePerDayCents: t.pricePerDayCents })),
+      });
+      if (syncResult.ok) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    return {
+      ok: true,
+      action: "metafields_resynced",
+      message: `Resynced ${successCount} products successfully${failCount > 0 ? `, ${failCount} failed` : ""}.`,
+    };
+  }
+
   return { ok: false, error: "Unknown action." };
 };
 
