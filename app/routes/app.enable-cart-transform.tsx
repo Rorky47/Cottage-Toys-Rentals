@@ -11,7 +11,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const response = await admin.graphql(
       `#graphql
         query {
-          shopifyFunctions(first: 20, apiType: CART_TRANSFORM) {
+          shopifyFunctions(first: 20, apiType: "cart_transform") {
             nodes {
               id
               apiType
