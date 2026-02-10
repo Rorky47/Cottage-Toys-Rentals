@@ -88,7 +88,7 @@ export default function PrivacyPolicy() {
       <h2>11. Contact Us</h2>
       <p>For questions about this privacy policy or data handling:</p>
       <ul>
-        <li><strong>Email:</strong> support@ndsrentalrates.com</li>
+        <li><strong>Email:</strong> ethanrork14@gmail.com</li>
         <li><strong>Support:</strong> Via the app's support page in Shopify Admin</li>
       </ul>
 

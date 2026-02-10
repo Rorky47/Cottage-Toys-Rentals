@@ -78,16 +78,7 @@ export default function DiagnoseFunction() {
 
         <h3>Alternative: Enable via Shopify Admin</h3>
         <ol>
-          <li>
-            Go to:{" "}
-            <a
-              href="https://cottage-toys-canada.myshopify.com/admin/settings/checkout"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Settings → Checkout
-            </a>
-          </li>
+          <li>Go to: Shopify Admin → Settings → Checkout</li>
           <li>Scroll to "Cart and checkout validations" or similar section</li>
           <li>Look for "Cart price multiplier" or similar cart transform</li>
           <li>Click to enable it</li>
