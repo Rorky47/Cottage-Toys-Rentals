@@ -322,29 +322,32 @@
             var curStart = parseDateOnly(startInput.value);
             var curEnd = parseDateOnly(endInput.value);
 
-            // First click - set start only
+            // First click - set as anchor and start
             if (!curStart) {
               startInput.value = picked;
               endInput.value = '';
-              anchorDate = null; // No anchor yet
+              anchorDate = picked; // First click is the anchor
             }
-            // Second click - set end and remember this as the anchor
-            else if (curStart && !curEnd) {
-              anchorDate = picked; // THIS is the anchor (second clicked date)
-              if (picked < startInput.value) {
-                endInput.value = startInput.value;
-                startInput.value = picked;
+            // Subsequent clicks - update anchor to the newly clicked date
+            else {
+              anchorDate = picked; // THIS clicked date is now the anchor
+              
+              // Determine the other date (whichever was set before)
+              var otherDate = null;
+              if (curEnd) {
+                // If we had both dates, use the one that's NOT the old anchor
+                otherDate = curStart;
               } else {
-                endInput.value = picked;
+                // If we only had start, use it
+                otherDate = startInput.value;
               }
-            }
-            // Third+ clicks - use the remembered anchor, adjust the other date
-            else if (curStart && curEnd && anchorDate) {
-              if (picked < anchorDate) {
+              
+              // Auto-sort with anchor and other date
+              if (picked < otherDate) {
                 startInput.value = picked;
-                endInput.value = anchorDate;
+                endInput.value = otherDate;
               } else {
-                startInput.value = anchorDate;
+                startInput.value = otherDate;
                 endInput.value = picked;
               }
             }
