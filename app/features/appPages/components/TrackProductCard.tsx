@@ -14,10 +14,10 @@ export function TrackProductCard({ fetcher, productId, onProductIdChange, isSubm
     <Card>
       <BlockStack gap="300">
         <Text as="h2" variant="headingMd">
-          Track a product
+          Add rental product
         </Text>
         <Text as="p" variant="bodySm" tone="subdued">
-          Add a product to your Home list, then enable rentals and configure pricing/availability.
+          Search for a product or enter its ID below. Rentals will be enabled automatically with default pricing from Shopify.
         </Text>
 
         <InlineStack gap="300" blockAlign="center" wrap>
@@ -39,7 +39,7 @@ export function TrackProductCard({ fetcher, productId, onProductIdChange, isSubm
                 />
               </Box>
               <Button variant="primary" submit loading={isSubmitting}>
-                Track
+                Add product
               </Button>
             </InlineStack>
           </BlockStack>

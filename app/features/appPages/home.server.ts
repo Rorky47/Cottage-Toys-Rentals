@@ -142,14 +142,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const productId = normalizeShopifyProductId(rawProductId);
     if (!productId) return { ok: false, error: "Enter a valid Shopify product ID." };
 
-    // Validate product exists (Shopify is source of truth)
+    // Validate product exists and get defaults
     const res = await admin.graphql(
       `#graphql
-        query ValidateProduct($id: ID!) {
+        query ValidateProductForEnable($id: ID!) {
           product(id: $id) {
             id
             title
+            featuredImage { url }
+            variants(first: 50) { edges { node { id price inventoryQuantity } } }
           }
+          shop { currencyCode }
         }`,
       { variables: { id: `gid://shopify/Product/${productId}` } },
     );
@@ -157,6 +160,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const product = json?.data?.product;
     if (!product?.id) return { ok: false, error: "Product not found (or missing access)." };
 
+    // Track product
     await prisma.productReference.upsert({
       where: { shop_shopifyProductId: { shop: session.shop, shopifyProductId: productId } },
       create: {
@@ -166,7 +170,62 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       update: {},
     });
 
-    return { ok: true, action: "tracked" };
+    // Auto-enable rentals with defaults from Shopify
+    const currencyCode = String(json?.data?.shop?.currencyCode ?? "USD");
+    const variants: Array<{ node: { price: string; inventoryQuantity: number | null } }> =
+      product?.variants?.edges ?? [];
+    const firstPrice = variants[0]?.node?.price ?? "0";
+    const basePricePerDayCents = Math.round(Number(firstPrice) * 100);
+    const totalQty = variants.reduce((sum, e) => sum + (e.node.inventoryQuantity ?? 0), 0);
+    const quantity = Number.isFinite(totalQty) ? Math.max(0, totalQty) : 0;
+
+    const saved = await prisma.rentalItem.upsert({
+      where: { shop_shopifyProductId: { shop: session.shop, shopifyProductId: productId } },
+      create: {
+        shop: session.shop,
+        shopifyProductId: productId,
+        name: product.title ?? null,
+        imageUrl: product.featuredImage?.url ?? null,
+        currencyCode,
+        basePricePerDayCents: Number.isFinite(basePricePerDayCents) ? Math.max(0, basePricePerDayCents) : 0,
+        quantity,
+      },
+      update: {
+        name: product.title ?? null,
+        imageUrl: product.featuredImage?.url ?? null,
+        currencyCode,
+      },
+    });
+
+    // Sync pricing metafield
+    const syncResult = await syncPricingMetafieldBestEffort({
+      admin,
+      shopifyProductId: productId,
+      basePricePerDayCents: saved.basePricePerDayCents,
+      tiers: [],
+    });
+
+    invalidateRentalCache(session.shop, productId);
+    return { ok: true, action: "tracked", ...(syncResult.ok ? {} : { warning: syncResult.warning }) };
+  }
+
+  if (intent === "remove_product") {
+    const productId = String(formData.get("productId") ?? "");
+    const normalized = normalizeShopifyProductId(productId);
+    if (!normalized) return { ok: false, error: "Missing productId." };
+
+    // Delete rental item (bookings and rate tiers cascade)
+    await prisma.rentalItem.deleteMany({
+      where: { shop: session.shop, shopifyProductId: normalized },
+    });
+
+    // Delete product reference (untrack)
+    await prisma.productReference.deleteMany({
+      where: { shop: session.shop, shopifyProductId: normalized },
+    });
+
+    invalidateRentalCache(session.shop, normalized);
+    return { ok: true, action: "removed" };
   }
 
   if (intent === "untrack_product") {

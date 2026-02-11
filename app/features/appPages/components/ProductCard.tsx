@@ -27,51 +27,32 @@ export function ProductCard({ row, fetcher }: Props) {
               Product ID {row.shopifyProductId}
             </Text>
           </BlockStack>
-          <InlineStack gap="200">
-            <Badge tone={row.tracked ? "success" : "attention"}>{row.tracked ? "Tracked" : "Untracked"}</Badge>
-            <Badge tone={row.rentalItem ? "success" : "attention"}>
-              {row.rentalItem ? "Rentals enabled" : "Rentals not enabled"}
-            </Badge>
-            <Button url={`shopify:admin/products/${row.shopifyProductId}`} target="_blank">
-              View product
+          <InlineStack gap="200" blockAlign="center">
+            {row.rentalItem && (
+              <Badge tone="success">Rentals enabled</Badge>
+            )}
+            <Button url={`shopify:admin/products/${row.shopifyProductId}`} target="_blank" size="slim">
+              View in Shopify
             </Button>
-            {row.tracked && row.refId ? (
-              <fetcher.Form method="post">
-                <input type="hidden" name="intent" value="untrack_product" />
-                <input type="hidden" name="refId" value={row.refId} />
-                <Button tone="critical" submit>
-                  Untrack
-                </Button>
-              </fetcher.Form>
-            ) : null}
-            {!row.tracked ? (
-              <fetcher.Form method="post">
-                <input type="hidden" name="intent" value="track_existing_rental" />
-                <input type="hidden" name="productId" value={row.shopifyProductId} />
-                <Button submit>Track</Button>
-              </fetcher.Form>
-            ) : null}
+            <fetcher.Form method="post">
+              <input type="hidden" name="intent" value="remove_product" />
+              <input type="hidden" name="productId" value={row.shopifyProductId} />
+              <Button tone="critical" submit size="slim">
+                Remove
+              </Button>
+            </fetcher.Form>
           </InlineStack>
         </InlineStack>
 
-        {!row.rentalItem ? (
-          <fetcher.Form method="post">
-            <input type="hidden" name="intent" value="enable_rentals" />
-            <input type="hidden" name="productId" value={row.shopifyProductId} />
-            <InlineStack gap="300" blockAlign="center" wrap>
-              <Text as="p" variant="bodySm" tone="subdued">
-                Creates a rental configuration using default variant price and Shopify inventory.
-              </Text>
-              <Button submit variant="primary">
-                Enable rentals
-              </Button>
-            </InlineStack>
-          </fetcher.Form>
-        ) : (
+        {row.rentalItem ? (
           <>
             <RentalBaseAndAvailabilityForm fetcher={fetcher} row={row} />
             <PricingCard fetcher={fetcher} row={row} />
           </>
+        ) : (
+          <Text as="p" variant="bodySm" tone="subdued">
+            Loading rental configuration...
+          </Text>
         )}
       </BlockStack>
     </Box>
