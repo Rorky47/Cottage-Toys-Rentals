@@ -1,4 +1,4 @@
-import { BlockStack, Button, Card, Text } from "@shopify/polaris";
+import { BlockStack, Card, Text, TextField } from "@shopify/polaris";
 import type { RentalFetcher } from "~/features/appPages/types";
 
 type Props = {
@@ -18,9 +18,18 @@ export function TrackProductCard({ isSubmitting, onPickProduct }: Props) {
           Search for a product to enable rentals. Default pricing will be set automatically from Shopify.
         </Text>
 
-        <Button onClick={onPickProduct} variant="primary" size="large" loading={isSubmitting}>
-          Search products
-        </Button>
+        <div onClick={onPickProduct} style={{ cursor: "pointer" }}>
+          <TextField
+            label=""
+            value=""
+            onChange={() => {}}
+            placeholder="Search products..."
+            autoComplete="off"
+            disabled={isSubmitting}
+            prefix={<span style={{ fontSize: "16px" }}>🔍</span>}
+            readOnly
+          />
+        </div>
       </BlockStack>
     </Card>
   );
