@@ -29,3 +29,4 @@ pnpm-lock.yaml
 # Generated types/schema
 /app/types/admin.generated.d.ts
 /app/types/admin-2025-07.schema.json
+app/types/admin.types.d.ts
