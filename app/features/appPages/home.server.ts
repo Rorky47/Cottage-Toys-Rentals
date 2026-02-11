@@ -360,7 +360,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         where: { id: it.id, shop: session.shop },
         data: { pricingAlgorithm: "FLAT" },
       });
-      await prisma.rateTier.deleteMany({ where: { rentalItemId: it.id } });
+      // Keep tiers in database - just don't use them in flat mode
       invalidateRentalCache(session.shop, it.shopifyProductId);
       const syncResult = await syncPricingMetafieldBestEffort({
         admin,
