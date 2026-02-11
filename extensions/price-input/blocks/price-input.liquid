@@ -267,6 +267,8 @@
       today.setHours(0,0,0,0);
       var todayStr = toDateOnlyString(today);
 
+      var anchorDate = null; // Track the second clicked date as anchor
+
       var view = new Date(today.getFullYear(), today.getMonth(), 1);
 
       function renderCalendar() {
@@ -324,9 +326,11 @@
             if (!curStart) {
               startInput.value = picked;
               endInput.value = '';
+              anchorDate = null; // No anchor yet
             }
-            // Second click - set end and make it the sticky anchor
+            // Second click - set end and remember this as the anchor
             else if (curStart && !curEnd) {
+              anchorDate = picked; // THIS is the anchor (second clicked date)
               if (picked < startInput.value) {
                 endInput.value = startInput.value;
                 startInput.value = picked;
@@ -334,14 +338,13 @@
                 endInput.value = picked;
               }
             }
-            // Third+ clicks - end date is the anchor, adjust start around it
-            else if (curStart && curEnd) {
-              var anchor = endInput.value; // End is the sticky anchor
-              if (picked < anchor) {
+            // Third+ clicks - use the remembered anchor, adjust the other date
+            else if (curStart && curEnd && anchorDate) {
+              if (picked < anchorDate) {
                 startInput.value = picked;
-                endInput.value = anchor;
+                endInput.value = anchorDate;
               } else {
-                startInput.value = anchor;
+                startInput.value = anchorDate;
                 endInput.value = picked;
               }
             }
@@ -357,6 +360,7 @@
       function clearDates() {
         startInput.value = '';
         endInput.value = '';
+        anchorDate = null; // Reset anchor
         renderCalendar();
         if (originalPriceText) updateDisplayedPrice(originalPriceText);
       }
