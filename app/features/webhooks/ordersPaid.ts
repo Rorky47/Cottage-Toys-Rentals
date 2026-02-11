@@ -72,8 +72,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     for (const li of lineItems) {
       const props = (li?.properties as LineItemProperty[]) ?? undefined;
-      const rentalStart = getProperty(props, "rental_start");
-      const rentalEnd = getProperty(props, "rental_end");
+      const rentalStart = getProperty(props, "Rental Start Date") || getProperty(props, "rental_start");
+      const rentalEnd = getProperty(props, "Rental Return Date") || getProperty(props, "rental_end");
       const bookingRef = getProperty(props, "_booking_ref") ?? null;
 
       if (!rentalStart || !rentalEnd) continue; // not a rental line

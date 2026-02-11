@@ -433,9 +433,9 @@
             id: String(variantId),
             quantity: u,
             properties: {
-              rental_start: String(start),
-              rental_end: String(end),
-              rental_days: String(days)
+              'Rental Start Date': String(start),
+              'Rental Return Date': String(end),
+              'Rental Duration': String(days) + ' days'
             }
           };
 
@@ -469,8 +469,8 @@
                     // variants for this product with the same rental date range.
                     if (String(it.product_id) !== String(productId)) continue;
                     var props = it.properties || {};
-                    if (String(props.rental_start || '') !== String(start)) continue;
-                    if (String(props.rental_end || '') !== String(end)) continue;
+                    if (String(props['Rental Start Date'] || '') !== String(start)) continue;
+                    if (String(props['Rental Return Date'] || '') !== String(end)) continue;
                     total += Number(it.quantity || 0);
                   }
                   if (isFinite(total) && total > 0) totalUnitsForThisRange = total;
@@ -537,9 +537,9 @@
                       id: addedKey,
                       quantity: u,
                       properties: {
-                        rental_start: String(start),
-                        rental_end: String(end),
-                        rental_days: String(days),
+                        'Rental Start Date': String(start),
+                        'Rental Return Date': String(end),
+                        'Rental Duration': String(days) + ' days',
                         _booking_ref: bookingRef
                       }
                     })
@@ -578,9 +578,9 @@
                 id: String(variantId),
                 quantity: u,
                 properties: {
-                  rental_start: String(start),
-                  rental_end: String(end),
-                  rental_days: String(days)
+                  'Rental Start Date': String(start),
+                  'Rental Return Date': String(end),
+                  'Rental Duration': String(days) + ' days'
                 }
               };
 
@@ -613,8 +613,8 @@
                       // variants for this product with the same rental date range.
                       if (String(it.product_id) !== String(productId)) continue;
                       var props = it.properties || {};
-                      if (String(props.rental_start || '') !== String(start)) continue;
-                      if (String(props.rental_end || '') !== String(end)) continue;
+                      if (String(props['Rental Start Date'] || '') !== String(start)) continue;
+                      if (String(props['Rental Return Date'] || '') !== String(end)) continue;
                       total += Number(it.quantity || 0);
                     }
                     if (isFinite(total) && total > 0) totalUnitsForThisRange = total;
@@ -644,9 +644,9 @@
                         id: addedKey,
                         quantity: u,
                         properties: {
-                          rental_start: String(start),
-                          rental_end: String(end),
-                          rental_days: String(days),
+                          'Rental Start Date': String(start),
+                          'Rental Return Date': String(end),
+                          'Rental Duration': String(days) + ' days',
                           _cottage_cart_token: String(cartToken)
                         }
                       })
