@@ -16,23 +16,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   console.log("[GDPR] shop/redact received", { shop });
 
   try {
-    // Delete all rentals for this shop
-    const rentalsDeleted = await db.rental.deleteMany({
-      where: { shop },
-    });
-
-    // Delete all rental items for this shop
-    const itemsDeleted = await db.rentalItem.deleteMany({
-      where: { shop },
-    });
-
-    // Delete all pricing tiers for this shop
-    const tiersDeleted = await db.pricingTier.deleteMany({
+    // Delete all bookings for this shop (cascades from rental items)
+    const bookingsDeleted = await db.booking.deleteMany({
       where: {
         rentalItem: {
           shop,
         },
       },
+    });
+
+    // Delete all product references for this shop
+    const referencesDeleted = await db.productReference.deleteMany({
+      where: { shop },
+    });
+
+    // Delete all rental items for this shop (rate tiers cascade automatically)
+    const itemsDeleted = await db.rentalItem.deleteMany({
+      where: { shop },
     });
 
     // Delete the shop session (auth data)
@@ -42,9 +42,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     console.log("[GDPR] Shop data deleted:", {
       shop,
-      rentalsDeleted: rentalsDeleted.count,
+      bookingsDeleted: bookingsDeleted.count,
+      referencesDeleted: referencesDeleted.count,
       itemsDeleted: itemsDeleted.count,
-      tiersDeleted: tiersDeleted.count,
       sessionsDeleted: sessionsDeleted.count,
     });
 

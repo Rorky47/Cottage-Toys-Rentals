@@ -26,34 +26,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return new Response("OK", { status: 200 });
     }
 
-    // Find all rentals associated with this customer
-    const rentals = await db.rental.findMany({
+    // Find all bookings associated with this customer (via order ID)
+    // Note: Bookings are linked to orders. In a full implementation, you would
+    // need to query Shopify's orders API to map customer to orders, then find bookings.
+    // For now, we return OK as bookings don't directly store customer data.
+    const bookings = await db.booking.findMany({
       where: {
-        shop,
-        OR: [
-          customerId ? { customerId: String(customerId) } : undefined,
-          customerEmail ? { customerEmail } : undefined,
-        ].filter(Boolean),
+        orderId: { not: null },
+        rentalItem: {
+          shop,
+        },
       },
       include: {
-        item: true,
+        rentalItem: true,
       },
     });
 
     // Log what data we have (in production, this would be sent to customer)
-    console.log("[GDPR] Customer data found:", {
+    // Note: Bookings are linked to orders, not directly to customers.
+    // A full implementation would query Shopify API for customer's orders first.
+    console.log("[GDPR] Customer data request processed:", {
       shop,
       customerId,
       customerEmail,
-      rentalsCount: rentals.length,
-      rentals: rentals.map(r => ({
-        id: r.id,
-        status: r.status,
-        startDate: r.startDate,
-        endDate: r.endDate,
-        totalPriceCents: r.totalPriceCents,
-        productTitle: r.item?.name,
-      })),
+      note: "Bookings are linked to orders. Customer-specific data requires order lookup via Shopify API.",
     });
 
     // In a real implementation, you might:

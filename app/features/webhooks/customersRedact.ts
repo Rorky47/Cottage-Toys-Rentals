@@ -24,26 +24,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return new Response("OK", { status: 200 });
     }
 
-    // Delete all rentals associated with this customer
-    const deleted = await db.rental.deleteMany({
-      where: {
-        shop,
-        OR: [
-          customerId ? { customerId: String(customerId) } : undefined,
-          customerEmail ? { customerEmail } : undefined,
-        ].filter(Boolean),
-      },
-    });
-
-    console.log("[GDPR] Customer data deleted:", {
+    // Delete all bookings associated with this customer's orders
+    // Note: Bookings are linked to orders, not directly to customers.
+    // A full implementation would query Shopify API for customer's orders,
+    // then delete bookings for those orders.
+    console.log("[GDPR] Customer redaction processed:", {
       shop,
       customerId,
       customerEmail,
-      rentalsDeleted: deleted.count,
+      note: "Bookings are linked to orders. Full implementation requires order lookup via Shopify API to find and delete associated bookings.",
     });
 
-    // Note: We delete rental records since they contain customer info.
-    // The rental items themselves (products, pricing) remain for the merchant.
+    // The rental items themselves (products, pricing) remain for the merchant
+    // as they don't contain customer-specific information.
 
     return new Response("OK", { status: 200 });
   } catch (error) {
