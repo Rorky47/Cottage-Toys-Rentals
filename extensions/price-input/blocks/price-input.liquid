@@ -320,17 +320,12 @@
             var curStart = parseDateOnly(startInput.value);
             var curEnd = parseDateOnly(endInput.value);
 
-            // If both are already set, clicking any date makes it the new "last clicked" end date
-            if (curStart && curEnd) {
-              // Keep start, update end to the new clicked date (and auto-sort)
-              if (picked < startInput.value) {
-                endInput.value = startInput.value;
-                startInput.value = picked;
-              } else {
-                endInput.value = picked;
-              }
+            // First click - set start only
+            if (!curStart) {
+              startInput.value = picked;
+              endInput.value = '';
             }
-            // If only start is set, second click becomes end (auto-sorted)
+            // Second click - set end and make it the sticky anchor
             else if (curStart && !curEnd) {
               if (picked < startInput.value) {
                 endInput.value = startInput.value;
@@ -339,10 +334,16 @@
                 endInput.value = picked;
               }
             }
-            // First click sets start
-            else {
-              startInput.value = picked;
-              endInput.value = '';
+            // Third+ clicks - end date is the anchor, adjust start around it
+            else if (curStart && curEnd) {
+              var anchor = endInput.value; // End is the sticky anchor
+              if (picked < anchor) {
+                startInput.value = picked;
+                endInput.value = anchor;
+              } else {
+                startInput.value = anchor;
+                endInput.value = picked;
+              }
             }
 
             renderCalendar();
