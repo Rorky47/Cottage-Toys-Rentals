@@ -200,6 +200,11 @@
       var priceEl = document.querySelector('.price-item--regular');
       var originalPriceText = priceEl ? priceEl.textContent : null;
       
+      // API endpoint constants
+      var API_QUOTE = '/quote';
+      var API_RESERVE = '/reserve';
+      var API_UNRESERVE = '/unreserve';
+      
       // Line item property name constants
       var PROP_START_DATE = 'Rental Start Date';
       var PROP_RETURN_DATE = 'Rental Return Date';
@@ -388,7 +393,7 @@
             '&start_date=' + encodeURIComponent(String(startStr)) +
             '&end_date=' + encodeURIComponent(String(endStr)) +
             '&units=1';
-          var resp = await fetch(appProxyUrl('/quote' + qs), { credentials: 'same-origin' });
+          var resp = await fetch(appProxyUrl(API_QUOTE + qs), { credentials: 'same-origin' });
           var j = await resp.json();
           if (quoteKey !== lastQuoteKey) return;
           if (j && j.ok && typeof j.lineTotalCents === 'number') {
@@ -409,6 +414,33 @@
       }
       function writeRentalCart(items) {
         try { localStorage.setItem('cottage_rental_cart', JSON.stringify(items)); } catch (e) {}
+      }
+
+      // Helper function to reserve inventory with backend
+      async function reserveInventory(start, end, days, units, cartToken) {
+        var reserveResp = await fetch(appProxyUrl(API_RESERVE), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            product_id: String(productId),
+            start_date: String(start),
+            end_date: String(end),
+            rental_days: String(days),
+            units: units,
+            cart_token: String(cartToken)
+          })
+        });
+        
+        if (!reserveResp.ok) {
+          var err = null;
+          try { err = await reserveResp.json(); } catch (e) {}
+          var msg = (err && err.error) ? String(err.error) : 
+                    ('Failed to reserve availability (status ' + String(reserveResp.status) + ').');
+          throw new Error(msg);
+        }
+        
+        return await reserveResp.json();
       }
 
       addBtn.addEventListener('click', function () {
@@ -494,26 +526,32 @@
                 }
               }
 
-              var reserveResp = await fetch(appProxyUrl('/reserve'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                  product_id: String(productId),
-                  start_date: String(start),
-                  end_date: String(end),
-                  rental_days: String(days),
-                  units: totalUnitsForThisRange,
-                  cart_token: String(cartToken)
-                })
-              });
-              if (!reserveResp.ok) {
-                var err = null;
-                try { err = await reserveResp.json(); } catch (e) {}
-                var msg =
-                  (err && err.error) ? String(err.error) :
-                  ('Failed to reserve availability (status ' + String(reserveResp.status) + ').');
-                // Remove the just-added line so cart and calendar don't drift.
+              try {
+                var reserveData = await reserveInventory(start, end, days, totalUnitsForThisRange, cartToken);
+                var bookingRef = (reserveData && reserveData.bookingRef) ? String(reserveData.bookingRef) : null;
+                
+                // Update line item with secure booking reference
+                if (addedKey && bookingRef) {
+                  try {
+                    await fetch('/cart/change.js', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'same-origin',
+                      body: JSON.stringify({
+                        id: addedKey,
+                        quantity: u,
+                        properties: {
+                          PROP_START_DATE: String(start),
+                          PROP_RETURN_DATE: String(end),
+                          PROP_DURATION: String(days) + ' days',
+                          _booking_ref: bookingRef
+                        }
+                      })
+                    });
+                  } catch (e) {}
+                }
+              } catch (e) {
+                // Remove cart item if reservation failed
                 if (addedKey) {
                   try {
                     await fetch('/cart/change.js', {
@@ -522,35 +560,9 @@
                       credentials: 'same-origin',
                       body: JSON.stringify({ id: addedKey, quantity: 0 })
                     });
-                  } catch (e) {}
+                  } catch (e2) {}
                 }
-                throw new Error(msg);
-              }
-              
-              // Get booking reference from reserve response
-              var reserveData = null;
-              try { reserveData = await reserveResp.json(); } catch (e) {}
-              var bookingRef = (reserveData && reserveData.bookingRef) ? String(reserveData.bookingRef) : null;
-              
-              // Update line item with secure booking reference
-              if (addedKey && bookingRef) {
-                try {
-                  await fetch('/cart/change.js', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({
-                      id: addedKey,
-                      quantity: u,
-                      properties: {
-                        PROP_START_DATE: String(start),
-                        PROP_RETURN_DATE: String(end),
-                        PROP_DURATION: String(days) + ' days',
-                        _booking_ref: bookingRef
-                      }
-                    })
-                  });
-                } catch (e) {}
+                reserveErr = e;
               }
             } catch (e) { reserveErr = e; }
             if (reserveErr) throw reserveErr;
@@ -660,25 +672,10 @@
                   } catch (e) {}
                 }
 
-                var reserveResp = await fetch(appProxyUrl('/reserve'), {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  credentials: 'same-origin',
-                  body: JSON.stringify({
-                    product_id: String(productId),
-                    start_date: String(start),
-                    end_date: String(end),
-                    rental_days: String(days),
-                    units: totalUnitsForThisRange,
-                    cart_token: String(cartToken)
-                  })
-                });
-                if (!reserveResp.ok) {
-                  var err = null;
-                  try { err = await reserveResp.json(); } catch (e) {}
-                  var msg =
-                    (err && err.error) ? String(err.error) :
-                    ('Failed to reserve availability (status ' + String(reserveResp.status) + ').');
+                try {
+                  await reserveInventory(start, end, days, totalUnitsForThisRange, cartToken);
+                } catch (e) {
+                  // Remove cart item if reservation failed
                   if (addedKey) {
                     try {
                       await fetch('/cart/change.js', {
@@ -687,9 +684,9 @@
                         credentials: 'same-origin',
                         body: JSON.stringify({ id: addedKey, quantity: 0 })
                       });
-                    } catch (e) {}
+                    } catch (e2) {}
                   }
-                  throw new Error(msg);
+                  reserveErr = e;
                 }
               } catch (e) { reserveErr = e; }
               if (reserveErr) throw reserveErr;
@@ -756,7 +753,7 @@
                 var bookingRef = String(data.properties._booking_ref);
                 
                 // Call unreserve endpoint
-                fetch(appProxyUrl('/unreserve'), {
+                fetch(appProxyUrl(API_UNRESERVE), {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   credentials: 'same-origin',
