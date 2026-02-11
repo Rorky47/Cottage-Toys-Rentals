@@ -3,12 +3,16 @@ import { json } from "@remix-run/node";
 import prisma from "~/db.server";
 import { authenticate } from "~/shopify";
 import { toDateOnly, isBookingStatus, isFulfillmentMethod, type BookingRow } from "~/features/calendar";
+import { cleanupExpiredReservations } from "~/rental/cleanup.server";
 
 export type CalendarLoaderData = { year: number; month: number; rows: BookingRow[]; todayDate: string };
 export type CalendarActionData = { ok: true } | { ok: false; error: string };
 
 export const loader = async ({ request }: LoaderFunctionArgs): Promise<CalendarLoaderData> => {
   const { session } = await authenticate.admin(request);
+
+  // Clean up expired reservations before showing calendar
+  await cleanupExpiredReservations();
 
   const now = new Date();
   const url = new URL(request.url);

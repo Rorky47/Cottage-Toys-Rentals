@@ -300,14 +300,15 @@
             var curStart = parseDateOnly(startInput.value);
             var curEnd = parseDateOnly(endInput.value);
 
+            // If both are set or none are set, start fresh with this date
             if (!curStart || (curStart && curEnd)) {
               startInput.value = picked;
               endInput.value = '';
             } else {
-              // second pick becomes end; ensure end > start
-              if (picked <= startInput.value) {
+              // Auto-sort: earlier date = start, later date = end
+              if (picked < startInput.value) {
+                endInput.value = startInput.value;
                 startInput.value = picked;
-                endInput.value = '';
               } else {
                 endInput.value = picked;
               }
