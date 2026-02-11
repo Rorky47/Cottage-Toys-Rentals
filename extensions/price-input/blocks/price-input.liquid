@@ -712,6 +712,55 @@
       renderCalendar();
     })();
   </script>
+
+  <!-- Global cart monitoring for unreserving when items are removed -->
+  <script>
+    (function() {
+      var appProxyBasePath = '/apps/nds-rentalrates-app';
+      var shopDomain = '{{ shop.permanent_domain }}';
+      
+      function appProxyUrl(pathAndQuery) {
+        if (shopDomain) return 'https://' + shopDomain + appProxyBasePath + pathAndQuery;
+        return appProxyBasePath + pathAndQuery;
+      }
+
+      // Intercept cart changes to detect removals
+      var originalFetch = window.fetch;
+      window.fetch = function(url, options) {
+        var isFetchCall = arguments.length > 0;
+        var promise = originalFetch.apply(this, arguments);
+        
+        // Detect cart change/update API calls
+        if (isFetchCall && typeof url === 'string' && url.includes('/cart/change.js')) {
+          promise.then(function(response) {
+            // Clone response to read body without consuming it
+            response.clone().json().then(function(data) {
+              // If quantity is 0, item was removed
+              if (data && data.quantity === 0 && data.properties && data.properties._booking_ref) {
+                var bookingRef = String(data.properties._booking_ref);
+                
+                // Call unreserve endpoint
+                fetch(appProxyUrl('/unreserve'), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'same-origin',
+                  body: JSON.stringify({ booking_ref: bookingRef })
+                }).catch(function(e) {
+                  console.warn('Failed to unreserve booking:', e);
+                });
+              }
+            }).catch(function() {
+              // Ignore JSON parse errors
+            });
+          }).catch(function() {
+            // Ignore fetch errors
+          });
+        }
+        
+        return promise;
+      };
+    })();
+  </script>
 </div>
 
 {% schema %}
