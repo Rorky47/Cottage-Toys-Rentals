@@ -12,7 +12,6 @@ export default function RentalsHome() {
   const { rows } = useLoaderData<HomeLoaderData>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
-  const [productId, setProductId] = useState("");
 
   const isSubmitting = fetcher.state !== "idle";
   const last = fetcher.data as any;
@@ -21,7 +20,6 @@ export default function RentalsHome() {
     if (!last) return;
     if (last.ok) {
       shopify.toast.show("Saved");
-      setProductId("");
       if (last.warning) {
         shopify.toast.show(String(last.warning), { isError: true });
       }
@@ -53,35 +51,9 @@ export default function RentalsHome() {
       <BlockStack gap="500">
         <TrackProductCard
           fetcher={fetcher}
-          productId={productId}
-          onProductIdChange={setProductId}
           isSubmitting={isSubmitting}
           onPickProduct={pickProduct}
         />
-
-        {displayRows.length > 0 && (
-          <fetcher.Form method="post" style={{ marginBottom: "1rem" }}>
-            <input type="hidden" name="intent" value="resync_all_metafields" />
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{
-                padding: "8px 16px",
-                backgroundColor: "#008060",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: isSubmitting ? "not-allowed" : "pointer",
-                opacity: isSubmitting ? 0.6 : 1,
-              }}
-            >
-              {isSubmitting ? "Resyncing..." : "🔄 Resync All Pricing Metafields"}
-            </button>
-            <p style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
-              Click this to update pricing metafields for all rental products (needed for cart transform)
-            </p>
-          </fetcher.Form>
-        )}
 
         <ProductList rows={displayRows} fetcher={fetcher} />
       </BlockStack>
