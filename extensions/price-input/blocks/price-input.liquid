@@ -199,6 +199,26 @@
 
       var priceEl = document.querySelector('.price-item--regular');
       var originalPriceText = priceEl ? priceEl.textContent : null;
+      
+      // Parse original price format to maintain consistency
+      var priceFormat = { prefix: '$', suffix: '' };
+      if (originalPriceText && currency) {
+        var trimmed = originalPriceText.trim();
+        // Check if currency appears at end (e.g., "$45.00 CAD")
+        if (trimmed.includes(currency)) {
+          var currencyIndex = trimmed.indexOf(currency);
+          var beforeCurrency = trimmed.substring(0, currencyIndex).trim();
+          // If there's a $ before the number, format is: $XX.XX CAD
+          if (beforeCurrency.includes('$')) {
+            priceFormat.prefix = '$';
+            priceFormat.suffix = ' ' + currency;
+          } else {
+            // Format is: CAD XX.XX
+            priceFormat.prefix = currency + ' ';
+            priceFormat.suffix = '';
+          }
+        }
+      }
 
       function pad2(n) { return String(n).padStart(2, '0'); }
       function toDateOnlyString(d) {
@@ -222,7 +242,7 @@
       }
       function formatMoneyFromCents(cents) {
         var amount = (Math.round(cents) / 100).toFixed(2);
-        return currency ? (currency + ' ' + amount) : amount;
+        return priceFormat.prefix + amount + priceFormat.suffix;
       }
       function updateDisplayedPrice(text) {
         if (!priceEl || !text) return;
