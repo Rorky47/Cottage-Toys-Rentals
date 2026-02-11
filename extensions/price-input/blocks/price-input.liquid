@@ -328,26 +328,17 @@
               endInput.value = '';
               anchorDate = picked; // First click is the anchor
             }
-            // Subsequent clicks - update anchor to the newly clicked date
-            else {
-              anchorDate = picked; // THIS clicked date is now the anchor
+            // Subsequent clicks - new click becomes anchor, old anchor becomes the other end
+            else if (anchorDate) {
+              var oldAnchor = anchorDate; // Keep the previous anchor
+              anchorDate = picked; // Update anchor to newly clicked date
               
-              // Determine the other date (whichever was set before)
-              var otherDate = null;
-              if (curEnd) {
-                // If we had both dates, use the one that's NOT the old anchor
-                otherDate = curStart;
-              } else {
-                // If we only had start, use it
-                otherDate = startInput.value;
-              }
-              
-              // Auto-sort with anchor and other date
-              if (picked < otherDate) {
+              // Pair the new anchor with the old anchor
+              if (picked < oldAnchor) {
                 startInput.value = picked;
-                endInput.value = otherDate;
+                endInput.value = oldAnchor;
               } else {
-                startInput.value = otherDate;
+                startInput.value = oldAnchor;
                 endInput.value = picked;
               }
             }
