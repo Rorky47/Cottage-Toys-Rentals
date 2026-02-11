@@ -478,28 +478,6 @@
                 }
               }
 
-              // Persist cart token onto the line item so webhook handlers can reliably
-              // promote RESERVED(cart:<token>) to CONFIRMED on order paid.
-              if (addedKey) {
-                try {
-                  await fetch('/cart/change.js', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({
-                      id: addedKey,
-                      quantity: u,
-                      properties: {
-                        rental_start: String(start),
-                        rental_end: String(end),
-                        rental_days: String(days),
-                        _cottage_cart_token: String(cartToken)
-                      }
-                    })
-                  });
-                } catch (e) {}
-              }
-
               var reserveResp = await fetch(appProxyUrl('/reserve'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -531,6 +509,32 @@
                   } catch (e) {}
                 }
                 throw new Error(msg);
+              }
+              
+              // Get booking reference from reserve response
+              var reserveData = null;
+              try { reserveData = await reserveResp.json(); } catch (e) {}
+              var bookingRef = (reserveData && reserveData.bookingRef) ? String(reserveData.bookingRef) : null;
+              
+              // Update line item with secure booking reference
+              if (addedKey && bookingRef) {
+                try {
+                  await fetch('/cart/change.js', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                      id: addedKey,
+                      quantity: u,
+                      properties: {
+                        rental_start: String(start),
+                        rental_end: String(end),
+                        rental_days: String(days),
+                        _booking_ref: bookingRef
+                      }
+                    })
+                  });
+                } catch (e) {}
               }
             } catch (e) { reserveErr = e; }
             if (reserveErr) throw reserveErr;

@@ -99,6 +99,7 @@ export const reserveAction = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
+    let bookingRef: string;
     if (hold?.id) {
       await prisma.booking.update({
         where: { id: hold.id },
@@ -107,8 +108,9 @@ export const reserveAction = async ({ request }: ActionFunctionArgs) => {
           expiresAt: new Date(Date.now() + RESERVATION_TTL_MS),
         },
       });
+      bookingRef = hold.id;
     } else {
-      await prisma.booking.create({
+      const newBooking = await prisma.booking.create({
         data: {
           rentalItemId: rentalItem.id,
           orderId: reservedId,
@@ -119,6 +121,7 @@ export const reserveAction = async ({ request }: ActionFunctionArgs) => {
           expiresAt: new Date(Date.now() + RESERVATION_TTL_MS),
         },
       });
+      bookingRef = newBooking.id;
     }
 
     const total = rentalItem.basePricePerDayCents * rentalDays * units;
@@ -130,6 +133,7 @@ export const reserveAction = async ({ request }: ActionFunctionArgs) => {
       pricePerDayCents: rentalItem.basePricePerDayCents,
       unitTotalCents: rentalItem.basePricePerDayCents * rentalDays,
       lineTotalCents: total,
+      bookingRef, // Return the unique booking ID
     });
   } catch (e: any) {
     if (e?.code === "P2025") {

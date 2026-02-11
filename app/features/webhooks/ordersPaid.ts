@@ -74,7 +74,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const props = (li?.properties as LineItemProperty[]) ?? undefined;
       const rentalStart = getProperty(props, "rental_start");
       const rentalEnd = getProperty(props, "rental_end");
-      const lineCartToken = getProperty(props, "_cottage_cart_token") ?? null;
+      const bookingRef = getProperty(props, "_booking_ref") ?? null;
 
       if (!rentalStart || !rentalEnd) continue; // not a rental line
 
@@ -93,7 +93,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         units: (prev?.units ?? 0) + units,
         title: prev?.title ?? (typeof li?.title === "string" ? li.title : null),
         unitPriceStr: prev?.unitPriceStr ?? (li?.price != null ? String(li.price) : null),
-        cartToken: prev?.cartToken ?? lineCartToken ?? (cartToken ? cartToken : null),
+        bookingRef: prev?.bookingRef ?? bookingRef,
       });
     }
 
@@ -132,15 +132,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const startDate = parseDateOnlyToUtcDate(entry.start);
     const endDate = parseDateOnlyToUtcDate(entry.end);
 
-    // Promote existing RESERVED hold (cart:<token>) into CONFIRMED so the same bar updates.
-    const reservedId = entry.cartToken ? reservedOrderId(entry.cartToken) : null;
-    if (reservedId) {
+    // Promote existing RESERVED booking by its unique booking reference
+    if (entry.bookingRef) {
       const updated = await prisma.booking.updateMany({
         where: {
+          id: entry.bookingRef,
           rentalItemId: rentalItem.id,
-          orderId: reservedId,
-          startDate,
-          endDate,
           status: "RESERVED",
         },
         data: {
