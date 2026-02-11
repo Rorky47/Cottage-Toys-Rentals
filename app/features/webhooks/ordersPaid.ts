@@ -74,7 +74,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const props = (li?.properties as LineItemProperty[]) ?? undefined;
       const rentalStart = getProperty(props, "rental_start");
       const rentalEnd = getProperty(props, "rental_end");
-      const lineCartToken = getProperty(props, "cottage_cart_token") ?? null;
+      const lineCartToken = getProperty(props, "_cottage_cart_token") ?? null;
 
       if (!rentalStart || !rentalEnd) continue; // not a rental line
 
