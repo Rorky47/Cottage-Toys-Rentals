@@ -425,17 +425,17 @@
       // Helper to create line item properties with both internal keys and display labels
       function createRentalProperties(start, end, days, bookingRef) {
         var props = {};
-        // Internal keys (snake_case) - REQUIRED for cart transform to work
-        props[PROP_START_DATE_KEY] = String(start);
-        props[PROP_RETURN_DATE_KEY] = String(end);
-        props[PROP_DURATION_KEY] = String(days);
-        // Display labels (customer-friendly) - shown in order emails
-        props[PROP_START_DATE_LABEL] = String(start);
-        props[PROP_RETURN_DATE_LABEL] = String(end);
-        props[PROP_DURATION_LABEL] = String(days) + ' days';
+        // Internal keys (hidden with underscore prefix) - REQUIRED for cart transform & webhook
+        props['_rental_start'] = String(start);
+        props['_rental_end'] = String(end);
+        props['_rental_days'] = String(days);
+        // Display labels (customer-friendly) - shown in cart & order emails
+        props['Rental Start Date'] = String(start);
+        props['Rental Return Date'] = String(end);
+        props['Rental Duration'] = String(days) + ' days';
         // Booking reference (hidden)
         if (bookingRef) {
-          props[PROP_BOOKING_REF] = bookingRef;
+          props['_booking_ref'] = bookingRef;
         }
         return props;
       }
@@ -586,7 +586,16 @@
               }
             } catch (e) { reserveErr = e; }
             if (reserveErr) throw reserveErr;
-            alert('Added to cart.');
+            
+            // Trigger theme's cart notification (instead of alert)
+            if (typeof window !== 'undefined') {
+              document.dispatchEvent(new CustomEvent('cart:updated'));
+              // Dawn theme support
+              if (window.Shopify && window.Shopify.theme && window.Shopify.theme.cart) {
+                window.Shopify.theme.cart.update();
+              }
+            }
+            console.log('[rental] Added to cart successfully');
           } catch (e) {
             alert(String(e && e.message ? e.message : e));
           } finally {

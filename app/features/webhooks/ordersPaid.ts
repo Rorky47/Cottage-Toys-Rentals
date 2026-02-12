@@ -72,9 +72,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     for (const li of lineItems) {
       const props = (li?.properties as LineItemProperty[]) ?? undefined;
-      const rentalStart = getProperty(props, "Rental Start Date") || getProperty(props, "rental_start");
-      const rentalEnd = getProperty(props, "Rental Return Date") || getProperty(props, "rental_end");
-      const bookingRef = getProperty(props, "_booking_ref") ?? null;
+      const rentalStart = getProperty(props, "Rental Start Date") || getProperty(props, "rental_start") || getProperty(props, "_rental_start");
+      const rentalEnd = getProperty(props, "Rental Return Date") || getProperty(props, "rental_end") || getProperty(props, "_rental_end");
+      const bookingRef = getProperty(props, "_booking_ref") || getProperty(props, "booking_ref");
 
       console.log(`[ordersPaid] Line item properties:`, JSON.stringify(props));
       console.log(`[ordersPaid] Extracted: start=${rentalStart}, end=${rentalEnd}, bookingRef=${bookingRef}`);
