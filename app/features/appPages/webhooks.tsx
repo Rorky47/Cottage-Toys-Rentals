@@ -9,13 +9,14 @@ export default function WebhooksDebugPage() {
   const shopify = useAppBridge();
 
   const last = fetcher.data as any;
-  if (last?.ok) {
+  if (last?.ok && last.ok !== false) {
     // avoid infinite toasts on rerender
     last.ok = false;
-    shopify.toast.show("Webhook registration requested");
+    shopify.toast.show("Webhooks registered successfully!");
   } else if (last?.error) {
+    const err = String(last.error);
     last.error = null;
-    shopify.toast.show(String(last.error), { isError: true });
+    shopify.toast.show(err, { isError: true, duration: 10000 });
   }
 
   return (
