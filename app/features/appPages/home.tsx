@@ -5,11 +5,12 @@ import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import type { RentalConfigRow } from "~/features/appPages/types";
 import { TrackProductCard } from "~/features/appPages/components/TrackProductCard";
 import { ProductList } from "~/features/appPages/components/ProductList";
+import { PrivacyBanner } from "~/features/appPages/components/PrivacyBanner";
 import type { HomeLoaderData } from "~/features/appPages/home.server";
 import type { action } from "~/features/appPages/home.server";
 
 export default function RentalsHome() {
-  const { rows } = useLoaderData<HomeLoaderData>();
+  const { rows, privacyAccepted } = useLoaderData<HomeLoaderData>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
 
@@ -35,6 +36,8 @@ export default function RentalsHome() {
       <TitleBar title="Home" />
 
       <BlockStack gap="500">
+        <PrivacyBanner hasAccepted={privacyAccepted} />
+        
         <TrackProductCard
           fetcher={fetcher}
           isSubmitting={isSubmitting}
