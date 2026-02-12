@@ -12,12 +12,20 @@ export function PrivacyBanner(props: { hasAccepted: boolean }) {
     }
   }, [props.hasAccepted]);
 
+  useEffect(() => {
+    // Auto-dismiss banner when submission succeeds
+    if (fetcher.state === "idle" && fetcher.data?.ok) {
+      setDismissed(true);
+    }
+  }, [fetcher.state, fetcher.data]);
+
   const handleAccept = () => {
+    console.log("[PrivacyBanner] Submitting privacy acceptance");
     fetcher.submit(
       { intent: "accept_privacy" },
-      { method: "post", action: "/app" }
+      { method: "post" }
     );
-    setDismissed(true);
+    // Don't dismiss immediately - wait for server response
   };
 
   if (dismissed) return null;
@@ -37,6 +45,8 @@ export function PrivacyBanner(props: { hasAccepted: boolean }) {
           . We only collect the minimum data needed for rental booking management (order IDs and rental dates). 
           We do not collect or store customer names, emails, or addresses.
         </p>
+        {fetcher.state === "submitting" && <p style={{ marginTop: "10px", fontSize: "14px" }}>Saving...</p>}
+        {fetcher.data?.error && <p style={{ marginTop: "10px", fontSize: "14px", color: "red" }}>{fetcher.data.error}</p>}
       </Banner>
     </div>
   );

@@ -132,20 +132,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const intent = String(formData.get("intent") ?? "");
 
+  console.log(`[home.server] Action called with intent: ${intent}`);
+
   if (intent === "accept_privacy") {
-    await prisma.shopSettings.upsert({
-      where: { shop: session.shop },
-      create: {
-        shop: session.shop,
-        privacyAcceptedAt: new Date(),
-        privacyAcceptedVersion: "2026-02-12",
-      },
-      update: {
-        privacyAcceptedAt: new Date(),
-        privacyAcceptedVersion: "2026-02-12",
-      },
-    });
-    return { ok: true };
+    console.log(`[home.server] Processing privacy acceptance for shop: ${session.shop}`);
+    try {
+      await prisma.shopSettings.upsert({
+        where: { shop: session.shop },
+        create: {
+          shop: session.shop,
+          privacyAcceptedAt: new Date(),
+          privacyAcceptedVersion: "2026-02-12",
+        },
+        update: {
+          privacyAcceptedAt: new Date(),
+          privacyAcceptedVersion: "2026-02-12",
+        },
+      });
+      console.log(`[home.server] Privacy accepted successfully for ${session.shop}`);
+      return { ok: true };
+    } catch (error) {
+      console.error(`[home.server] Error accepting privacy:`, error);
+      return { ok: false, error: "Failed to accept privacy policy" };
+    }
   }
 
   if (intent === "track_product") {
