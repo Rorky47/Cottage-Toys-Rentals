@@ -2,10 +2,10 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { authenticate } from "~/shopify";
 import { logger } from "~/utils/logger";
-import prisma from "~/db.server";
+import { createContainer } from "~/shared/container";
 
 /**
- * Refactored /unreserve endpoint.
+ * Refactored /unreserve endpoint using DeleteReservationUseCase.
  * 
  * NOTE: This endpoint DELETES reservations rather than canceling them.
  * This is intentional for cart hold scenarios - we don't need audit trail for temporary holds.
@@ -40,23 +40,17 @@ export const unreserveAction = async ({ request }: ActionFunctionArgs) => {
     return json({ ok: false, error: "Missing booking_ref" }, { status: 400 });
   }
 
-  // 3. Delete RESERVED booking
+  // 3. Delete RESERVED booking using use case
   try {
-    const deleted = await prisma.booking.deleteMany({
-      where: {
-        id: bookingRef,
-        status: "RESERVED", // Only delete reservations, never confirmed bookings
-      },
-    });
+    const container = createContainer();
+    const useCase = container.getDeleteReservationUseCase();
+    const result = await useCase.execute({ bookingRef });
 
-    if (deleted.count === 0) {
-      return json({ 
-        ok: false, 
-        error: "Booking not found or already confirmed" 
-      }, { status: 404 });
+    if (result.isFailure) {
+      return json({ ok: false, error: result.error }, { status: 404 });
     }
 
-    return json({ ok: true, deleted: deleted.count });
+    return json({ ok: true, deleted: result.value.deleted });
 
   } catch (e: any) {
     logger.error("Unreserve failed", e, { bookingRef });

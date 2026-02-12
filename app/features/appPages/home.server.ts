@@ -177,8 +177,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const productId = normalizeShopifyProductId(rawProductId);
     if (!productId) return { ok: false, error: "Missing productId." };
 
+    const container = createContainer();
     const useCase = container.getTrackProductUseCase(admin);
-    const input = new TrackProductInput(session.shop, productId);
+    const input: TrackProductInput = { shop: session.shop, shopifyProductId: productId };
     const result = await useCase.execute(input);
 
     if (result.isFailure) {

@@ -18,6 +18,7 @@ import { ConfirmBookingUseCase } from "~/domains/booking/application/useCases/Co
 import { ConfirmBookingByIdUseCase } from "~/domains/booking/application/useCases/ConfirmBookingByIdUseCase";
 import { PromoteBookingByDatesUseCase } from "~/domains/booking/application/useCases/PromoteBookingByDatesUseCase";
 import { CleanupExpiredBookingsUseCase } from "~/domains/booking/application/useCases/CleanupExpiredBookingsUseCase";
+import { DeleteReservationUseCase } from "~/domains/booking/application/useCases/DeleteReservationUseCase";
 import { CalculatePricingUseCase } from "~/domains/pricing/application/useCases/CalculatePricingUseCase";
 import { CreateRentalItemUseCase } from "~/domains/rental/application/useCases/CreateRentalItemUseCase";
 import { UpdateRentalItemUseCase } from "~/domains/rental/application/useCases/UpdateRentalItemUseCase";
@@ -35,6 +36,7 @@ export interface IContainer {
   getConfirmBookingByIdUseCase(): ConfirmBookingByIdUseCase;
   getPromoteBookingByDatesUseCase(): PromoteBookingByDatesUseCase;
   getCleanupExpiredBookingsUseCase(): CleanupExpiredBookingsUseCase;
+  getDeleteReservationUseCase(): DeleteReservationUseCase;
   
   // Pricing domain
   getCalculatePricingUseCase(): CalculatePricingUseCase;
@@ -103,6 +105,10 @@ export function createContainer(db: PrismaClient = prisma): IContainer {
 
     getCleanupExpiredBookingsUseCase() {
       return new CleanupExpiredBookingsUseCase(getBookingRepo());
+    },
+
+    getDeleteReservationUseCase() {
+      return new DeleteReservationUseCase(getBookingRepo());
     },
 
     // Pricing domain
