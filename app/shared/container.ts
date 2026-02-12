@@ -30,6 +30,9 @@ import { UpdateRentalBasicsUseCase } from "~/domains/rental/application/useCases
 import { DeleteRentalItemUseCase } from "~/domains/rental/application/useCases/DeleteRentalItemUseCase";
 import { GetRentalItemsForDashboardUseCase } from "~/domains/rental/application/useCases/GetRentalItemsForDashboardUseCase";
 
+// Adapters
+import { ShopifyProductAdapter } from "~/domains/rental/infrastructure/adapters/ShopifyProductAdapter";
+
 export interface IContainer {
   // Booking domain
   getCheckAvailabilityUseCase(): CheckAvailabilityUseCase;
@@ -144,13 +147,11 @@ export function createContainer(db: PrismaClient = prisma): IContainer {
     },
 
     getTrackProductUseCase(adminApi: any) {
-      const { ShopifyProductAdapter } = require("~/domains/rental/infrastructure/adapters/ShopifyProductAdapter");
       const adapter = new ShopifyProductAdapter(adminApi);
       return new TrackProductUseCase(getRentalItemRepo(), adapter);
     },
 
     getUpdateRentalBasicsUseCase(adminApi: any) {
-      const { ShopifyProductAdapter } = require("~/domains/rental/infrastructure/adapters/ShopifyProductAdapter");
       const adapter = new ShopifyProductAdapter(adminApi);
       return new UpdateRentalBasicsUseCase(getRentalItemRepo(), adapter);
     },
