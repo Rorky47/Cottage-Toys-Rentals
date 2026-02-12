@@ -56,20 +56,23 @@ async function fetchShopifyProductInfo(admin: any, shopifyProductId: string): Pr
 /**
  * Loader: Fetch all rental items for this shop and enrich with Shopify data.
  * 
- * This is a display-only endpoint - uses Prisma directly since there's no
- * business logic or state changes.
+ * Migrated to use GetRentalItemsForDashboardUseCase.
  */
 export const loader = async ({ request }: LoaderFunctionArgs): Promise<HomeLoaderData> => {
   const { session, admin } = await authenticate.admin(request);
 
-  const rentalItems = await prisma.rentalItem.findMany({
-    where: { shop: session.shop },
-    include: { rateTiers: { orderBy: { minDays: "asc" } } },
-    orderBy: { createdAt: "desc" },
-  });
+  // Fetch rental items using use case
+  const container = createContainer();
+  const getRentalItemsUseCase = container.getGetRentalItemsForDashboardUseCase();
+  const result = await getRentalItemsUseCase.execute({ shop: session.shop });
 
+  if (result.isFailure) {
+    throw new Error(result.error);
+  }
+
+  // Enrich with Shopify product info
   const rows: RentalConfigRow[] = [];
-  for (const item of rentalItems) {
+  for (const item of result.value.rentalItems) {
     let info: ShopifyProductInfo | null = null;
     try {
       info = await fetchShopifyProductInfo(admin, item.shopifyProductId);
@@ -89,16 +92,12 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<HomeLoade
         basePricePerDayCents: item.basePricePerDayCents,
         pricingAlgorithm: item.pricingAlgorithm,
         quantity: item.quantity,
-        rateTiers: item.rateTiers.map((t) => ({
-          id: t.id,
-          minDays: t.minDays,
-          pricePerDayCents: t.pricePerDayCents,
-        })),
+        rateTiers: item.rateTiers,
       },
     });
   }
 
-  // Check if merchant has accepted privacy policy
+  // Check if merchant has accepted privacy policy (simple CRUD, kept as-is)
   let privacyAccepted = false;
   try {
     const shopSettings = await prisma.shopSettings.findUnique({

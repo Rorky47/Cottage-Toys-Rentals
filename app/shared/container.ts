@@ -28,6 +28,7 @@ import { UpsertRentalItemUseCase } from "~/domains/rental/application/useCases/U
 import { TrackProductUseCase } from "~/domains/rental/application/useCases/TrackProductUseCase";
 import { UpdateRentalBasicsUseCase } from "~/domains/rental/application/useCases/UpdateRentalBasicsUseCase";
 import { DeleteRentalItemUseCase } from "~/domains/rental/application/useCases/DeleteRentalItemUseCase";
+import { GetRentalItemsForDashboardUseCase } from "~/domains/rental/application/useCases/GetRentalItemsForDashboardUseCase";
 
 export interface IContainer {
   // Booking domain
@@ -52,6 +53,7 @@ export interface IContainer {
   getTrackProductUseCase(adminApi: any): TrackProductUseCase;
   getUpdateRentalBasicsUseCase(adminApi: any): UpdateRentalBasicsUseCase;
   getDeleteRentalItemUseCase(): DeleteRentalItemUseCase;
+  getGetRentalItemsForDashboardUseCase(): GetRentalItemsForDashboardUseCase;
 
   // Repositories (for edge cases where use case doesn't exist yet)
   getBookingRepository(): PrismaBookingRepository;
@@ -155,6 +157,10 @@ export function createContainer(db: PrismaClient = prisma): IContainer {
 
     getDeleteRentalItemUseCase() {
       return new DeleteRentalItemUseCase(getRentalItemRepo());
+    },
+
+    getGetRentalItemsForDashboardUseCase() {
+      return new GetRentalItemsForDashboardUseCase(getRentalItemRepo());
     },
 
     // Repositories

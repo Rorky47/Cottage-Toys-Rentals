@@ -52,6 +52,40 @@ export class PrismaRentalItemRepository implements IRentalItemRepository {
     return RentalItemMapper.toDomainArray(raw);
   }
 
+  async findByShopWithTierIds(shop: string): Promise<Array<{
+    id: string;
+    shopifyProductId: string;
+    name: string | null;
+    imageUrl: string | null;
+    currencyCode: string;
+    basePricePerDayCents: number;
+    pricingAlgorithm: "FLAT" | "TIERED";
+    quantity: number;
+    rateTiers: Array<{ id: string; minDays: number; pricePerDayCents: number }>;
+  }>> {
+    const raw = await this.prisma.rentalItem.findMany({
+      where: { shop },
+      include: { rateTiers: { orderBy: { minDays: "asc" } } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return raw.map((item) => ({
+      id: item.id,
+      shopifyProductId: item.shopifyProductId,
+      name: item.name,
+      imageUrl: item.imageUrl,
+      currencyCode: item.currencyCode,
+      basePricePerDayCents: item.basePricePerDayCents,
+      pricingAlgorithm: item.pricingAlgorithm as "FLAT" | "TIERED",
+      quantity: item.quantity,
+      rateTiers: item.rateTiers.map((tier) => ({
+        id: tier.id,
+        minDays: tier.minDays,
+        pricePerDayCents: tier.pricePerDayCents,
+      })),
+    }));
+  }
+
   async save(rentalItem: RentalItem): Promise<void> {
     const data = RentalItemMapper.toPrisma(rentalItem);
     const rateTiers = RentalItemMapper.rateTiersToPrisma(rentalItem);
