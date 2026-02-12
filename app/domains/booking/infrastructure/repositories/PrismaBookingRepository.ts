@@ -44,6 +44,22 @@ export class PrismaBookingRepository implements IBookingRepository {
     return BookingMapper.toDomainArray(raw);
   }
 
+  async findByRentalItemAndDateRange(
+    rentalItemId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<Booking[]> {
+    const raw = await this.prisma.booking.findMany({
+      where: {
+        rentalItemId,
+        startDate,
+        endDate,
+      },
+    });
+
+    return BookingMapper.toDomainArray(raw);
+  }
+
   async findByOrderId(orderId: string): Promise<Booking[]> {
     const raw = await this.prisma.booking.findMany({
       where: { orderId },

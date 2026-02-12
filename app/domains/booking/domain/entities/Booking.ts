@@ -163,6 +163,21 @@ export class Booking extends Entity {
     return Result.ok(undefined);
   }
 
+  updateUnits(units: number): Result<void> {
+    if (units < 1) {
+      return Result.fail("Units must be at least 1");
+    }
+
+    this.props.units = units;
+    this.props.updatedAt = new Date();
+    return Result.ok(undefined);
+  }
+
+  updateFulfillmentMethod(method: FulfillmentMethod): void {
+    this.props.fulfillmentMethod = method;
+    this.props.updatedAt = new Date();
+  }
+
   isExpired(now: Date = new Date()): boolean {
     if (!this.props.expiresAt) {
       return false;

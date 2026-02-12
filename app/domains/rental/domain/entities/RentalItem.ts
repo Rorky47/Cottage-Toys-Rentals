@@ -103,6 +103,35 @@ export class RentalItem extends Entity {
     this.props.updatedAt = new Date();
   }
 
+  /**
+   * Update basic fields (used by upsert in webhooks).
+   */
+  updateBasics(data: {
+    name?: string;
+    imageUrl?: string | null;
+    currencyCode?: string;
+    basePricePerDayCents?: number;
+  }): Result<void> {
+    if (data.name !== undefined) {
+      this.props.name = data.name;
+    }
+    if (data.imageUrl !== undefined) {
+      this.props.imageUrl = data.imageUrl;
+    }
+    if (data.currencyCode !== undefined) {
+      this.props.currencyCode = data.currencyCode;
+    }
+    if (data.basePricePerDayCents !== undefined) {
+      const priceResult = Money.fromCents(data.basePricePerDayCents, this.props.currencyCode);
+      if (priceResult.isFailure) {
+        return Result.fail(priceResult.error);
+      }
+      this.props.basePricePerDay = priceResult.value;
+    }
+    this.props.updatedAt = new Date();
+    return Result.ok(undefined);
+  }
+
   updatePricing(
     basePricePerDay: Money,
     algorithm: PricingAlgorithm,

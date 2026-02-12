@@ -6,262 +6,259 @@
 
 ### Tech Stack
 - **Framework**: Remix (React-based full-stack framework)
+- **Architecture**: Clean Architecture with Domain-Driven Design (DDD)
 - **Runtime**: Node.js (>=20.19 <22 || >=22.12)
 - **Database**: PostgreSQL with Prisma ORM
 - **Hosting**: Railway (production)
 - **Shopify Integration**: Shopify App Remix, App Bridge React
 - **UI**: Shopify Polaris components
-- **Testing**: Vitest
+- **Testing**: Vitest (with mocks and factories)
 - **Build Tool**: Vite
-- **Type System**: TypeScript
+- **Type System**: TypeScript (strict mode)
 
 ---
 
-## Project Structure
+## Architecture: Clean Architecture + DDD
+
+The app follows **Clean Architecture** principles with **Domain-Driven Design** patterns for maintainability and testability.
+
+###Architecture Layers (Dependency Flow)
 
 ```
-cottage-toys-rental/
-├── app/                          # Remix application code
-│   ├── routes/                   # File-based routing
-│   │   ├── app/                  # Admin UI routes (requires auth)
-│   │   ├── auth/                 # OAuth authentication flows
-│   │   ├── webhooks/             # Shopify webhook handlers
-│   │   └── apps.nds-rentalrates-app.$proxy.tsx  # Storefront proxy endpoint
-│   ├── rental/                   # Core rental domain logic
-│   │   ├── availability.server.ts    # Availability checking
-│   │   ├── booking.ts                # Booking models/utilities
-│   │   ├── pricing.server.ts         # Pricing calculations
-│   │   ├── pricingMetafield.server.ts # Shopify metafield sync
-│   │   ├── cleanup.server.ts         # Expired booking cleanup
-│   │   ├── cache.server.ts           # Caching layer
-│   │   └── proxy/                    # Storefront API endpoints
-│   ├── features/                 # Feature-specific code
-│   ├── shopify/                  # Shopify SDK setup & utilities
-│   ├── db.server.ts             # Prisma client singleton
-│   └── shopify.server.ts        # Shopify app configuration
-├── prisma/
-│   ├── schema.prisma            # Database schema
-│   └── migrations/              # Database migrations
-├── extensions/                   # Shopify app extensions
-│   ├── price-input/             # Admin UI extension for pricing
-│   └── cart-multiplier-function/ # Checkout function for rental logic
-├── docs/                        # Documentation
-├── scripts/                     # Utility scripts
-└── public/                      # Static assets
+Presentation Layer (Routes/UI)
+        ↓
+Application Layer (Use Cases)
+        ↓
+Domain Layer (Entities, Value Objects)
+        ↓
+Infrastructure Layer (Repositories, Adapters)
+```
+
+**Key Principles:**
+- Dependencies point inward (outer layers depend on inner layers)
+- Domain layer has NO dependencies on frameworks or databases
+- Use cases orchestrate business logic
+- Repositories abstract data access
+- DTOs transfer data between layers
+
+---
+
+## Key Concepts
+
+### Dependency Injection Container
+
+**Location**: `app/shared/container.ts`
+
+The container manages use case instantiation and repository lifecycle.
+
+**Usage Pattern:**
+
+```typescript
+import { createContainer } from "~/shared/container";
+
+// In route handlers or services:
+const container = createContainer();
+const useCase = container.getCheckAvailabilityUseCase();
+const result = await useCase.execute(input);
+```
+
+### Use Case Pattern
+
+All use cases follow the same pattern:
+
+```typescript
+interface SomeInput {
+  // Input parameters
+}
+
+interface SomeOutput {
+  // Output data
+}
+
+export class SomeUseCase {
+  constructor(private readonly repo: IRepository) {}
+
+  async execute(input: SomeInput): Promise<Result<SomeOutput>> {
+    // 1. Validate input
+    // 2. Load entities
+    // 3. Apply business rules
+    // 4. Persist changes
+    // 5. Return Result (success or failure)
+    
+    return Result.ok(output);
+    // or
+    return Result.fail("Error message");
+  }
+}
+```
+
+**Error Handling:**
+- Use `Result<T>` type (Railway-Oriented Programming)
+- Check `result.isSuccess` or `result.isFailure`
+- Access value via `result.value` or error via `result.error`
+
+---
+
+## Available Use Cases
+
+### Booking Domain
+- `getCheckAvailabilityUseCase()` - Check if dates are available
+- `getCreateBookingUseCase()` - Create RESERVED booking (storefront)
+- `getCreateConfirmedBookingUseCase()` - Create CONFIRMED booking (webhooks)
+- `getConfirmBookingByIdUseCase()` - Confirm booking by ID
+- `getPromoteBookingByDatesUseCase()` - Promote by date match
+- `getCleanupExpiredBookingsUseCase()` - Remove expired reservations
+
+### Rental Domain
+- `getCreateRentalItemUseCase()` - Create new rental item
+- `getUpsertRentalItemUseCase()` - Create or update rental item
+- `getUpdateRentalItemUseCase()` - Update rental configuration
+- `getTrackProductUseCase(adminApi)` - Track Shopify product
+- `getUpdateRentalBasicsUseCase(adminApi)` - Update price/quantity
+- `getDeleteRentalItemUseCase()` - Remove rental configuration
+
+### Pricing Domain
+- `getCalculatePricingUseCase()` - Calculate rental price
+
+---
+
+## Domain Entities
+
+### Booking Entity (`app/domains/booking/domain/entities/Booking.ts`)
+
+**Statuses:**
+- `RESERVED` - Temporary hold (45min TTL)
+- `CONFIRMED` - Paid booking
+- `CANCELLED` - Cancelled
+- `RETURNED` - Returned
+
+**Key Methods:**
+- `createReservation()` - Create RESERVED booking
+- `confirm(orderId)` - Promote to CONFIRMED
+- `cancel()`, `markAsReturned()`
+- `updateUnits()`, `updateFulfillmentMethod()`
+
+### RentalItem Entity (`app/domains/rental/domain/entities/RentalItem.ts`)
+
+**Key Methods:**
+- `updateBasics()` - Update name, price, currency
+- `updatePricing()` - Change pricing configuration
+- `updateQuantity()` - Adjust inventory
+
+---
+
+## Value Objects (Shared Kernel)
+
+### Result<T>
+Railway-oriented error handling:
+```typescript
+const result = Result.ok(value);
+const failure = Result.fail("error message");
+
+if (result.isSuccess) {
+  console.log(result.value);
+} else {
+  console.error(result.error);
+}
+```
+
+### Money
+Type-safe currency:
+```typescript
+const price = Money.fromCents(2500, "USD"); // $25.00
+```
+
+### DateRange
+Validates rental periods:
+```typescript
+const range = DateRange.create(startDate, endDate);
+console.log(range.value.durationDays); // Inclusive
 ```
 
 ---
 
-## Core Domain Models (Prisma)
+## Code Conventions
 
-### RentalItem
-Represents a Shopify product configured for rental. The app syncs pricing to Shopify metafields.
-- **Fields**: `shopifyProductId`, `name`, `basePricePerDayCents`, `pricingAlgorithm`, `quantity`
-- **Relations**: `rateTiers[]`, `bookings[]`
-- **Pricing Algorithms**: `FLAT` (single rate) or `TIERED` (volume discounts)
+### DTOs are Interfaces
+```typescript
+// ❌ Wrong
+const input = new TrackProductInput(shop, productId);
 
-### Booking
-Tracks rental reservations with date ranges.
-- **Fields**: `rentalItemId`, `orderId`, `startDate`, `endDate`, `units`, `status`, `fulfillmentMethod`
-- **Statuses**: `RESERVED`, `CONFIRMED`, `CANCELLED`, `RETURNED`
-- **Fulfillment**: `SHIP`, `PICKUP`, `UNKNOWN`
+// ✅ Correct
+const input: TrackProductInput = { shop, shopifyProductId: productId };
+```
 
-### RateTier
-Defines tiered pricing rules (e.g., $10/day for 1-3 days, $8/day for 4+ days).
-- **Fields**: `rentalItemId`, `minDays`, `pricePerDayCents`
+### Always Use Container
+```typescript
+// ❌ Wrong
+import { someFunction } from "~/rental/old-file";
 
-### ShopSettings
-Per-shop configuration (privacy acceptance, etc.).
+// ✅ Correct
+const container = createContainer();
+const useCase = container.getSomeUseCase();
+const result = await useCase.execute(input);
+```
 
----
+### Check Result Pattern
+```typescript
+const result = await useCase.execute(input);
 
-## Key Features & Workflows
+if (result.isFailure) {
+  return json({ error: result.error }, { status: 400 });
+}
 
-### 1. Rental Pricing Calculation
-**Location**: `app/rental/pricing.server.ts`
-
-Calculates rental price based on:
-- Rental duration (days)
-- Pricing algorithm (FLAT vs TIERED)
-- Rate tiers (volume discounts)
-
-Used by:
-- Storefront proxy API (real-time pricing)
-- Shopify metafield sync (display pricing in product pages)
-
-### 2. Availability Checking
-**Location**: `app/rental/availability.server.ts`
-
-Checks if a rental item is available for a given date range:
-- Queries existing bookings with overlapping dates
-- Accounts for quantity (multiple units of same item)
-- Filters out CANCELLED/RETURNED bookings
-- Returns available units and conflicts
-
-### 3. Booking Management
-**Workflow**:
-1. Customer selects dates on storefront (via theme integration)
-2. Storefront calls proxy endpoint to validate availability
-3. On checkout, webhook creates/confirms booking
-4. Admin can manage bookings via admin UI routes
-
-**Expiration**: Bookings with `expiresAt` are cleaned up by scheduled task (see `cleanup.server.ts`)
-
-### 4. Shopify Integration
-
-#### Metafields
-The app writes pricing data to Shopify product metafields so themes can display rental rates without API calls.
-
-**Location**: `app/rental/pricingMetafield.server.ts`
-
-#### Extensions
-- **price-input**: Admin UI extension for configuring rental pricing (embedded in product edit page)
-- **cart-multiplier-function**: Checkout function that applies rental duration multipliers
-
-#### Webhooks
-**Location**: `app/routes/webhooks/`
-
-Handles Shopify events (e.g., `orders/create`, `products/update`)
-
----
-
-## Routing Conventions
-
-### Admin Routes (`app/routes/app/*`)
-Require Shopify OAuth authentication. Render Polaris UI for merchants.
-
-**Examples**:
-- `app._index` → Dashboard
-- `app.search-products` → Product search UI
-- `app/$page` → Dynamic admin pages
-
-### Storefront Proxy (`apps.nds-rentalrates-app.$proxy.tsx`)
-Public API for theme/storefront to fetch rental data (availability, pricing).
-
-**Pattern**: `https://{shop}/apps/nds-rentalrates-app/{endpoint}`
-
-### Webhooks (`webhooks/$topic/$subtopic.tsx`)
-Handle Shopify webhook events. No UI, return JSON responses.
-
----
-
-## Environment Variables
-
-**Required**:
-- `SHOPIFY_API_KEY` – App client ID (from Partners dashboard)
-- `SHOPIFY_API_SECRET` – App client secret
-- `SHOPIFY_APP_URL` – Public app URL (e.g., Railway URL)
-- `SCOPES` – Comma-separated OAuth scopes (e.g., `read_products,write_products`)
-- `DATABASE_URL` – PostgreSQL connection string
-
-**Optional**:
-- `SHOP_CUSTOM_DOMAIN` – Custom shop domain override
-
----
-
-## Development Commands
-
-```bash
-npm run dev              # Start dev server (Shopify CLI tunnel)
-npm run build            # Build for production
-npm run start            # Start production server
-npm run setup            # Generate Prisma client & run migrations
-npm run deploy           # Deploy to Shopify (extensions + app)
-npm run lint             # ESLint
-npm run test             # Run Vitest tests
-npm run prisma           # Prisma CLI
+const data = result.value;
 ```
 
 ---
 
-## Code Style & Conventions
+## Migration Status
 
-### File Naming
-- **Routes**: Use Remix flat routes convention (`.` for nesting, `_` for layout routes)
-- **Server-only**: Files ending in `.server.ts` run server-side only
-- **Tests**: Co-located `*.test.ts` files
+### ✅ Migrated to Use Cases
+- Proxy routes (quote, reserve, unreserve)
+- Admin dashboard
+- ordersPaid webhook
 
-### TypeScript
-- Strict mode enabled
-- Use domain models from `app/rental/booking.ts`, `app/types/`
-- Shopify types from `@shopify/shopify-app-remix`
-
-### Database
-- Use Prisma Client from `app/db.server.ts` (singleton pattern)
-- Always use snake_case for table/column names (`@map` decorators in schema)
-- Transactions for multi-step booking operations
-
-### Shopify API
-- GraphQL queries via `shopify.admin.graphql()` (authenticated)
-- Use `@shopify/app-bridge-react` for admin UI
-- Polaris components for consistent merchant experience
-
----
-
-## Deployment
-
-### Railway (Production)
-1. Set environment variables in Railway dashboard
-2. Automatic deploy on git push (connected to main branch)
-3. Run `setup` script on first deploy (migrations)
-4. Set `SHOPIFY_APP_URL` to Railway URL in Partner Dashboard
-
-### Shopify Partners
-- Distribution: Public (App Store-ready)
-- Configure OAuth redirects to Railway URL
-- Extensions auto-deploy via `npm run deploy`
+### ⚠️ Deprecated Files (Do Not Add Features)
+- `app/rental/*.server.ts` - Old architecture
+- Use new use cases instead
 
 ---
 
 ## Common Tasks
 
-### Adding a New Rental Feature
-1. Update `prisma/schema.prisma` if new data needed
-2. Run `npx prisma migrate dev --name <migration_name>`
-3. Add business logic to `app/rental/`
-4. Create route in `app/routes/app/` for admin UI
-5. Update storefront proxy if needed (`apps.nds-rentalrates-app.$proxy.tsx`)
+### Add New Use Case
 
-### Updating Pricing Logic
-1. Modify `app/rental/pricing.server.ts`
-2. Update tests in `app/rental/__tests__/`
-3. Sync metafields via `pricingMetafield.server.ts`
+1. Create use case in `app/domains/{domain}/application/useCases/`
+2. Add to container in `app/shared/container.ts`
+3. Use in route via `createContainer()`
 
-### Adding Webhook Handler
-1. Create `app/routes/webhooks/{topic}/{subtopic}.tsx`
-2. Return `{ ok: true }` or error JSON
-3. Register webhook in `app/shopify.server.ts` if not auto-registered
+### Migrate Old Route
 
----
-
-## Important Notes
-
-- **Shopify is source of truth** for product data (price, inventory, etc.). The app only tracks rental-specific logic.
-- **Date ranges are inclusive**: `startDate` and `endDate` both count as rental days.
-- **Booking conflicts**: Use `availability.server.ts` to check before creating bookings.
-- **Cleanup task**: Expired bookings are deleted via scheduled job (see `cleanup.server.ts`).
-- **Caching**: Availability queries are cached (see `cache.server.ts`) to reduce DB load.
+1. Replace Prisma calls with use case execution
+2. Update imports to use `createContainer()`
+3. Use DTOs as interfaces (not classes)
+4. Return `Result<T>` pattern
 
 ---
 
 ## Troubleshooting
 
-### Development
-- If OAuth fails, check `SHOPIFY_APP_URL` matches dev tunnel URL
-- If database errors, run `npm run setup` to regenerate Prisma client
-- Clear cache with `rm -rf node_modules/.cache`
+**Build Error: "container is not exported"**
+- Use `createContainer()`, not `container`
 
-### Production
-- Check Railway logs for startup errors
-- Verify all env vars are set (app won't start without them)
-- Test webhooks with Shopify webhook tester in Partner Dashboard
+**Build Error: "SomeDto is not exported"**
+- DTOs are interfaces - use object literals, not `new SomeDto()`
+
+**Database Error**
+- Run `npm run setup` to regenerate Prisma client
 
 ---
 
-## Documentation
+## Key Principles
 
-See `/docs` for additional guides:
-- `setup-guide.md` – Initial setup instructions
-- `PRODUCTION_CHECKLIST.md` – Pre-launch checklist
-- `app-store-listing.md` – App Store submission details
-- `troubleshooting/` – Common issues and fixes
+1. **Use containers** - Always `createContainer()` to get use cases
+2. **DTOs are interfaces** - Use object literals
+3. **Result pattern** - Check `isSuccess`/`isFailure`
+4. **Entities > Prisma** - Work with domain entities
+5. **Type-safe values** - Use Money, DateRange value objects

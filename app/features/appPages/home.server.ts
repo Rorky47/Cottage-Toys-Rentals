@@ -3,10 +3,10 @@ import prisma from "~/db.server";
 import { authenticate } from "~/shopify";
 import { normalizeShopifyProductId } from "~/utils";
 import type { RentalConfigRow } from "~/features/appPages/types";
-import { container } from "~/shared/container";
-import { TrackProductInput } from "~/domains/rental/application/useCases/dto/TrackProductDto";
-import { UpdateRentalBasicsInput } from "~/domains/rental/application/useCases/dto/UpdateRentalBasicsDto";
-import { DeleteRentalItemInput } from "~/domains/rental/application/useCases/dto/DeleteRentalItemDto";
+import { createContainer } from "~/shared/container";
+import type { TrackProductInput } from "~/domains/rental/application/useCases/dto/TrackProductDto";
+import type { UpdateRentalBasicsInput } from "~/domains/rental/application/useCases/dto/UpdateRentalBasicsDto";
+import type { DeleteRentalItemInput } from "~/domains/rental/application/useCases/dto/DeleteRentalItemDto";
 
 export type HomeLoaderData = {
   rows: RentalConfigRow[];
@@ -155,8 +155,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const productId = normalizeShopifyProductId(rawProductId);
     if (!productId) return { ok: false, error: "Enter a valid Shopify product ID." };
 
+    const container = createContainer();
     const useCase = container.getTrackProductUseCase(admin);
-    const input = new TrackProductInput(session.shop, productId);
+    const input: TrackProductInput = { shop: session.shop, shopifyProductId: productId };
     const result = await useCase.execute(input);
 
     if (result.isFailure) {
@@ -198,7 +199,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!productId) return { ok: false, error: "Missing productId." };
 
     const useCase = container.getDeleteRentalItemUseCase();
-    const input = new DeleteRentalItemInput(session.shop, productId);
+    const input: DeleteRentalItemInput = { shop: session.shop, shopifyProductId: productId };
     const result = await useCase.execute(input);
 
     if (result.isFailure) {
@@ -222,7 +223,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!Number.isFinite(qty) || qty < 0) return { ok: false, error: "Invalid quantity." };
 
     const useCase = container.getUpdateRentalBasicsUseCase(admin);
-    const input = new UpdateRentalBasicsInput(session.shop, rentalItemId, cents, qty);
+    const input: UpdateRentalBasicsInput = { shop: session.shop, rentalItemId: rentalItemId, basePricePerDayCents: cents, quantity: qty };
     const result = await useCase.execute(input);
 
     if (result.isFailure) {

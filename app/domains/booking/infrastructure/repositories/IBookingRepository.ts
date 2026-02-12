@@ -13,6 +13,12 @@ export interface IBookingRepository {
     dateRange: DateRange
   ): Promise<Booking[]>;
   
+  findByRentalItemAndDateRange(
+    rentalItemId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<Booking[]>;
+  
   findByOrderId(orderId: string): Promise<Booking[]>;
   
   findExpired(now: Date): Promise<Booking[]>;

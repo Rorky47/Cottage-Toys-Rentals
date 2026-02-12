@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
-import prisma from "~/db.server";
 import { authenticate } from "~/shopify";
-import { countRentalDays, parseDateOnlyToUtcDate, reservedOrderId } from "~/rental";
+import { createContainer } from "~/shared/container";
+import { parseDateOnlyToUtcDate } from "~/rental/date";
 
 type LineItemProperty =
   | { name?: string; value?: string }
@@ -40,23 +40,38 @@ function inferFulfillmentMethodFromOrder(order: any): "SHIP" | "PICKUP" | "UNKNO
   return "UNKNOWN";
 }
 
+function countRentalDays(startDateStr: string, endDateStr: string): number {
+  const start = parseDateOnlyToUtcDate(startDateStr);
+  const end = parseDateOnlyToUtcDate(endDateStr);
+  const diffMs = end.getTime() - start.getTime();
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end
+  return days > 0 ? days : 1;
+}
+
+/**
+ * Webhook handler for orders/paid event.
+ * Confirms rental bookings when an order is paid.
+ * 
+ * Refactored to use Clean Architecture use cases:
+ * - UpsertRentalItemUseCase: Auto-track products if not configured
+ * - ConfirmBookingByIdUseCase: Promote bookings by booking reference
+ * - PromoteBookingByDatesUseCase: Fallback to promote by date match
+ * - CreateConfirmedBookingUseCase: Final fallback to create new booking
+ */
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { shop, payload, topic } = await authenticate.webhook(request);
     console.log(`Received ${topic} webhook for ${shop}`);
 
+    const container = createContainer();
     const order = payload as any;
     const orderId = String(order?.id ?? order?.admin_graphql_api_id ?? "");
     const currency = String(order?.currency ?? "USD");
     const fulfillmentMethod = inferFulfillmentMethodFromOrder(order);
-    const cartToken = String(
-      order?.cart_token ?? order?.cartToken ?? order?.checkout_token ?? order?.checkoutToken ?? "",
-    );
 
     const lineItems = (order?.line_items as any[]) ?? [];
 
-    // Aggregate quantity by (productId, start, end) so we confirm the right units even if checkout
-    // has multiple lines for the same rental range.
+    // Aggregate quantity by (productId, start, end)
     const aggregated = new Map<
       RentalLineKey,
       {
@@ -66,13 +81,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         units: number;
         title: string | null;
         unitPriceStr: string | null;
-        cartToken: string | null;
+        bookingRef: string | null;
       }
     >();
 
     for (const li of lineItems) {
       const props = (li?.properties as LineItemProperty[]) ?? undefined;
-      // Look for underscore-prefixed properties first (new format), then fallback to old formats
       const rentalStart = getProperty(props, "_rental_start") || getProperty(props, "Rental Start Date") || getProperty(props, "rental_start");
       const rentalEnd = getProperty(props, "_rental_end") || getProperty(props, "Rental Return Date") || getProperty(props, "rental_end");
       const bookingRef = getProperty(props, "_booking_ref") || getProperty(props, "booking_ref");
@@ -101,130 +115,115 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     }
 
-  for (const entry of aggregated.values()) {
-    let rentalDays = 0;
-    try {
-      rentalDays = countRentalDays(entry.start, entry.end);
-    } catch {
-      continue;
-    }
+    // Process each aggregated rental line
+    for (const entry of aggregated.values()) {
+      let rentalDays = 0;
+      try {
+        rentalDays = countRentalDays(entry.start, entry.end);
+      } catch {
+        console.error(`[ordersPaid] Invalid date range: ${entry.start} to ${entry.end}`);
+        continue;
+      }
 
-    const unitTotalStr = entry.unitPriceStr ?? "0";
-    const unitTotalCents = Math.round(Number(unitTotalStr) * 100);
-    const basePerDayCents = rentalDays > 0 ? Math.round(unitTotalCents / rentalDays) : 0;
+      const unitTotalStr = entry.unitPriceStr ?? "0";
+      const unitTotalCents = Math.round(Number(unitTotalStr) * 100);
+      const basePerDayCents = rentalDays > 0 ? Math.round(unitTotalCents / rentalDays) : 0;
 
-    const rentalItem = await prisma.rentalItem.upsert({
-      where: {
-        shop_shopifyProductId: { shop, shopifyProductId: entry.productId },
-      },
-      create: {
+      // 1. Upsert rental item (auto-track if not configured)
+      const upsertRentalItemUseCase = container.getUpsertRentalItemUseCase();
+      const rentalItemResult = await upsertRentalItemUseCase.execute({
         shop,
         shopifyProductId: entry.productId,
         name: entry.title,
         imageUrl: null,
         currencyCode: currency,
         basePricePerDayCents: basePerDayCents,
-        quantity: 1,
-      },
-      update: {
-        name: entry.title ?? undefined,
-        currencyCode: currency,
-        basePricePerDayCents: basePerDayCents,
-      },
-    });
-
-    const startDate = parseDateOnlyToUtcDate(entry.start);
-    const endDate = parseDateOnlyToUtcDate(entry.end);
-
-    // Promote existing RESERVED booking by its unique booking reference
-    if (entry.bookingRef) {
-      console.log(`[ordersPaid] Attempting to promote booking ${entry.bookingRef} for rentalItem ${rentalItem.id}`);
-      
-      // First check if the booking exists
-      const existingBooking = await prisma.booking.findUnique({
-        where: { id: entry.bookingRef },
       });
-      console.log(`[ordersPaid] Found existing booking:`, existingBooking ? `ID=${existingBooking.id}, status=${existingBooking.status}, rentalItemId=${existingBooking.rentalItemId}` : 'NOT FOUND');
-      
-      const updated = await prisma.booking.updateMany({
-        where: {
-          id: entry.bookingRef,
-          rentalItemId: rentalItem.id,
-          status: "RESERVED",
-        },
-        data: {
+
+      if (rentalItemResult.isFailure) {
+        console.error(`[ordersPaid] Failed to upsert rental item: ${rentalItemResult.error}`);
+        continue;
+      }
+
+      const rentalItem = rentalItemResult.value;
+      const startDate = parseDateOnlyToUtcDate(entry.start);
+      const endDate = parseDateOnlyToUtcDate(entry.end);
+
+      // 2. Try to promote existing RESERVED booking by booking reference
+      if (entry.bookingRef) {
+        console.log(`[ordersPaid] Attempting to confirm booking ${entry.bookingRef}`);
+        
+        const confirmByIdUseCase = container.getConfirmBookingByIdUseCase();
+        const confirmResult = await confirmByIdUseCase.execute({
+          bookingId: entry.bookingRef,
           orderId,
-          status: "CONFIRMED",
-          expiresAt: null,
           units: entry.units,
           fulfillmentMethod,
-        } as any,
+        });
+
+        if (confirmResult.isSuccess) {
+          console.log(`[ordersPaid] Successfully confirmed booking ${entry.bookingRef}`);
+          continue;
+        }
+
+        console.log(`[ordersPaid] Could not confirm booking ${entry.bookingRef}: ${confirmResult.error}`);
+      }
+
+      // 3. Check if already confirmed for this order (idempotency)
+      const bookingRepo = container.getBookingRepository();
+      const existingBookings = await bookingRepo.findByRentalItemAndDateRange(
+        rentalItem.id,
+        startDate,
+        endDate
+      );
+
+      const alreadyConfirmed = existingBookings.some((b) => b.orderId === orderId);
+      if (alreadyConfirmed) {
+        console.log(`[ordersPaid] Booking already confirmed for order ${orderId}`);
+        continue;
+      }
+
+      // 4. Try to promote RESERVED booking by dates
+      console.log(`[ordersPaid] Attempting to promote RESERVED booking by dates`);
+      const promoteByDatesUseCase = container.getPromoteBookingByDatesUseCase();
+      const promoteResult = await promoteByDatesUseCase.execute({
+        rentalItemId: rentalItem.id,
+        startDate,
+        endDate,
+        orderId,
+        units: entry.units,
+        fulfillmentMethod,
       });
-      console.log(`[ordersPaid] Updated ${updated.count} booking(s) for ref ${entry.bookingRef}`);
-      if (updated.count > 0) continue;
-      console.log(`[ordersPaid] Booking ${entry.bookingRef} not found or already confirmed - will create fallback`);
-    } else {
-      console.log(`[ordersPaid] No bookingRef provided for product ${entry.productId}`);
-    }
 
-    // Check if there's already a CONFIRMED booking for this order
-    const existingConfirmed = await prisma.booking.findFirst({
-      where: {
-        rentalItemId: rentalItem.id,
-        orderId,
-        startDate,
-        endDate,
-      },
-      select: { id: true },
-    });
-    if (existingConfirmed) {
-      console.log(`[ordersPaid] Booking already exists for order ${orderId}, skipping`);
-      continue;
-    }
+      if (promoteResult.isSuccess && promoteResult.value !== null) {
+        console.log(`[ordersPaid] Successfully promoted RESERVED booking by dates`);
+        continue;
+      }
 
-    // Try to promote an existing RESERVED booking with matching dates
-    const reservedUpdated = await prisma.booking.updateMany({
-      where: {
-        rentalItemId: rentalItem.id,
-        startDate,
-        endDate,
-        status: "RESERVED",
-        orderId: null, // Not yet linked to an order
-      },
-      data: {
-        orderId,
-        status: "CONFIRMED",
-        expiresAt: null,
-        units: entry.units,
-        fulfillmentMethod,
-      } as any,
-    });
-    
-    if (reservedUpdated.count > 0) {
-      console.log(`[ordersPaid] Promoted ${reservedUpdated.count} RESERVED booking(s) to CONFIRMED by dates`);
-      continue;
-    }
-
-    // No RESERVED booking found - create new CONFIRMED booking
-    console.log(`[ordersPaid] Creating new CONFIRMED booking for order ${orderId}`);
-    await prisma.booking.create({
-      data: {
+      // 5. Final fallback: Create new CONFIRMED booking
+      console.log(`[ordersPaid] Creating new CONFIRMED booking for order ${orderId}`);
+      const createConfirmedUseCase = container.getCreateConfirmedBookingUseCase();
+      const createResult = await createConfirmedUseCase.execute({
         rentalItemId: rentalItem.id,
         orderId,
         startDate,
         endDate,
         units: entry.units,
-        status: "CONFIRMED",
         fulfillmentMethod,
-      } as any,
-    });
+      });
+
+      if (createResult.isFailure) {
+        console.error(`[ordersPaid] Failed to create confirmed booking: ${createResult.error}`);
+        continue;
+      }
+
+      console.log(`[ordersPaid] Successfully created confirmed booking`);
+    }
+
+    return new Response(null, { status: 200 });
+  } catch (error) {
+    console.error(`[webhook] ORDERS_PAID failed:`, error);
+    // Return 500 so Shopify will retry the webhook
+    return new Response("Internal Server Error", { status: 500 });
   }
-
-  return new Response(null, { status: 200 });
-} catch (error) {
-  console.error(`[webhook] ORDERS_PAID failed for ${(error as any)?.shop ?? "unknown"}:`, error);
-  // Return 500 so Shopify will retry the webhook
-  return new Response("Internal Server Error", { status: 500 });
-}
 };
-

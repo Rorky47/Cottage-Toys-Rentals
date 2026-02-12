@@ -2,7 +2,7 @@ import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { authenticate } from "~/shopify";
 import { logger } from "~/utils/logger";
-import { container } from "~/shared/container";
+import { createContainer } from "~/shared/container";
 import { DateRange } from "~/shared/kernel/DateRange";
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -54,6 +54,7 @@ export const quoteLoader = async ({ request }: LoaderFunctionArgs) => {
     const endDateObj = new Date(`${endDate}T00:00:00.000Z`);
 
     // 3. Look up rental item by Shopify product ID
+    const container = createContainer();
     const rentalItemRepo = container.getRentalItemRepository();
     const rentalItem = await rentalItemRepo.findByShopifyProduct(shop, productId);
     
@@ -69,7 +70,7 @@ export const quoteLoader = async ({ request }: LoaderFunctionArgs) => {
     const dateRange = dateRangeResult.value;
 
     // 5. Calculate pricing using use case
-    const pricingUseCase = container.getPricingUseCase();
+    const pricingUseCase = container.getCalculatePricingUseCase();
     const pricingResult = await pricingUseCase.execute({
       rentalItemId: rentalItem.id,
       durationDays: dateRange.durationDays,

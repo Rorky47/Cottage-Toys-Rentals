@@ -13,11 +13,15 @@ import { PrismaRentalItemRepository } from "~/domains/rental/infrastructure/repo
 // Use case implementations
 import { CheckAvailabilityUseCase } from "~/domains/booking/application/useCases/CheckAvailabilityUseCase";
 import { CreateBookingUseCase } from "~/domains/booking/application/useCases/CreateBookingUseCase";
+import { CreateConfirmedBookingUseCase } from "~/domains/booking/application/useCases/CreateConfirmedBookingUseCase";
 import { ConfirmBookingUseCase } from "~/domains/booking/application/useCases/ConfirmBookingUseCase";
+import { ConfirmBookingByIdUseCase } from "~/domains/booking/application/useCases/ConfirmBookingByIdUseCase";
+import { PromoteBookingByDatesUseCase } from "~/domains/booking/application/useCases/PromoteBookingByDatesUseCase";
 import { CleanupExpiredBookingsUseCase } from "~/domains/booking/application/useCases/CleanupExpiredBookingsUseCase";
 import { CalculatePricingUseCase } from "~/domains/pricing/application/useCases/CalculatePricingUseCase";
 import { CreateRentalItemUseCase } from "~/domains/rental/application/useCases/CreateRentalItemUseCase";
 import { UpdateRentalItemUseCase } from "~/domains/rental/application/useCases/UpdateRentalItemUseCase";
+import { UpsertRentalItemUseCase } from "~/domains/rental/application/useCases/UpsertRentalItemUseCase";
 import { TrackProductUseCase } from "~/domains/rental/application/useCases/TrackProductUseCase";
 import { UpdateRentalBasicsUseCase } from "~/domains/rental/application/useCases/UpdateRentalBasicsUseCase";
 import { DeleteRentalItemUseCase } from "~/domains/rental/application/useCases/DeleteRentalItemUseCase";
@@ -26,7 +30,10 @@ export interface IContainer {
   // Booking domain
   getCheckAvailabilityUseCase(): CheckAvailabilityUseCase;
   getCreateBookingUseCase(): CreateBookingUseCase;
+  getCreateConfirmedBookingUseCase(): CreateConfirmedBookingUseCase;
   getConfirmBookingUseCase(): ConfirmBookingUseCase;
+  getConfirmBookingByIdUseCase(): ConfirmBookingByIdUseCase;
+  getPromoteBookingByDatesUseCase(): PromoteBookingByDatesUseCase;
   getCleanupExpiredBookingsUseCase(): CleanupExpiredBookingsUseCase;
   
   // Pricing domain
@@ -35,6 +42,7 @@ export interface IContainer {
   // Rental domain
   getCreateRentalItemUseCase(): CreateRentalItemUseCase;
   getUpdateRentalItemUseCase(): UpdateRentalItemUseCase;
+  getUpsertRentalItemUseCase(): UpsertRentalItemUseCase;
   getTrackProductUseCase(adminApi: any): TrackProductUseCase;
   getUpdateRentalBasicsUseCase(adminApi: any): UpdateRentalBasicsUseCase;
   getDeleteRentalItemUseCase(): DeleteRentalItemUseCase;
@@ -77,8 +85,20 @@ export function createContainer(db: PrismaClient = prisma): IContainer {
       return new CreateBookingUseCase(getBookingRepo(), getRentalItemRepo());
     },
 
+    getCreateConfirmedBookingUseCase() {
+      return new CreateConfirmedBookingUseCase(getBookingRepo());
+    },
+
     getConfirmBookingUseCase() {
       return new ConfirmBookingUseCase(getBookingRepo());
+    },
+
+    getConfirmBookingByIdUseCase() {
+      return new ConfirmBookingByIdUseCase(getBookingRepo());
+    },
+
+    getPromoteBookingByDatesUseCase() {
+      return new PromoteBookingByDatesUseCase(getBookingRepo());
     },
 
     getCleanupExpiredBookingsUseCase() {
@@ -97,6 +117,10 @@ export function createContainer(db: PrismaClient = prisma): IContainer {
 
     getUpdateRentalItemUseCase() {
       return new UpdateRentalItemUseCase(getRentalItemRepo());
+    },
+
+    getUpsertRentalItemUseCase() {
+      return new UpsertRentalItemUseCase(getRentalItemRepo());
     },
 
     getTrackProductUseCase(adminApi: any) {
