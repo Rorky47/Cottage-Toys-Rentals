@@ -166,7 +166,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       console.log(`[ordersPaid] No bookingRef provided for product ${entry.productId}`);
     }
 
-    const existing = await prisma.booking.findFirst({
+    // Check if there's already a CONFIRMED booking for this order
+    const existingConfirmed = await prisma.booking.findFirst({
       where: {
         rentalItemId: rentalItem.id,
         orderId,
@@ -175,8 +176,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
       select: { id: true },
     });
-    if (existing) continue;
+    if (existingConfirmed) {
+      console.log(`[ordersPaid] Booking already exists for order ${orderId}, skipping`);
+      continue;
+    }
 
+    // Try to promote an existing RESERVED booking with matching dates
+    const reservedUpdated = await prisma.booking.updateMany({
+      where: {
+        rentalItemId: rentalItem.id,
+        startDate,
+        endDate,
+        status: "RESERVED",
+        orderId: null, // Not yet linked to an order
+      },
+      data: {
+        orderId,
+        status: "CONFIRMED",
+        expiresAt: null,
+        units: entry.units,
+        fulfillmentMethod,
+      } as any,
+    });
+    
+    if (reservedUpdated.count > 0) {
+      console.log(`[ordersPaid] Promoted ${reservedUpdated.count} RESERVED booking(s) to CONFIRMED by dates`);
+      continue;
+    }
+
+    // No RESERVED booking found - create new CONFIRMED booking
+    console.log(`[ordersPaid] Creating new CONFIRMED booking for order ${orderId}`);
     await prisma.booking.create({
       data: {
         rentalItemId: rentalItem.id,

@@ -11,7 +11,7 @@ type Props = {
 export function ProductCard({ row, fetcher }: Props) {
   return (
     <Box
-      key={row.refId ?? `rental:${row.shopifyProductId}`}
+      key={row.shopifyProductId}
       padding="400"
       borderWidth="025"
       borderColor="border"

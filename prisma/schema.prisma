@@ -35,16 +35,6 @@ model Session {
 
 // Minimal reference to Shopify products the app tracks/manipulates.
 // Shopify remains the source of truth for price/inventory/etc.
-model ProductReference {
-  id               String   @id @default(cuid())
-  shop             String
-  shopifyProductId String   @map("shopify_product_id")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  @@unique([shop, shopifyProductId])
-  @@map("product_references")
-}
 
 enum BookingStatus {
   RESERVED

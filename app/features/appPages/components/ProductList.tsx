@@ -21,13 +21,13 @@ export function ProductList({ rows, fetcher }: Props) {
         {rows.length === 0 ? (
           <Box padding="400" background="bg-surface-secondary" borderRadius="200">
             <Text as="p" variant="bodyMd">
-              No tracked products yet.
+              No rental products yet.
             </Text>
           </Box>
         ) : (
           <BlockStack gap="400">
             {rows.map((row) => (
-              <ProductCard key={row.refId ?? `rental:${row.shopifyProductId}`} row={row} fetcher={fetcher} />
+              <ProductCard key={row.shopifyProductId} row={row} fetcher={fetcher} />
             ))}
           </BlockStack>
         )}

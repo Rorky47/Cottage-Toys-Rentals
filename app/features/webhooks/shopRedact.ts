@@ -16,37 +16,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   console.log("[GDPR] shop/redact received", { shop });
 
   try {
-    // Delete all bookings for this shop (cascades from rental items)
-    const bookingsDeleted = await db.booking.deleteMany({
-      where: {
-        rentalItem: {
-          shop,
-        },
-      },
-    });
+    await db.$transaction([
+      db.rateTier.deleteMany({ where: { rentalItem: { shop } } }),
+      db.booking.deleteMany({ where: { rentalItem: { shop } } }),
+      db.rentalItem.deleteMany({ where: { shop } }),
+      db.shopSettings.deleteMany({ where: { shop } }),
+      db.session.deleteMany({ where: { shop } }),
+    ]);
 
-    // Delete all product references for this shop
-    const referencesDeleted = await db.productReference.deleteMany({
-      where: { shop },
-    });
-
-    // Delete all rental items for this shop (rate tiers cascade automatically)
-    const itemsDeleted = await db.rentalItem.deleteMany({
-      where: { shop },
-    });
-
-    // Delete the shop session (auth data)
-    const sessionsDeleted = await db.session.deleteMany({
-      where: { shop },
-    });
-
-    console.log("[GDPR] Shop data deleted:", {
-      shop,
-      bookingsDeleted: bookingsDeleted.count,
-      referencesDeleted: referencesDeleted.count,
-      itemsDeleted: itemsDeleted.count,
-      sessionsDeleted: sessionsDeleted.count,
-    });
+    console.log("[GDPR] Shop data deleted successfully:", { shop });
 
     return new Response("OK", { status: 200 });
   } catch (error) {
