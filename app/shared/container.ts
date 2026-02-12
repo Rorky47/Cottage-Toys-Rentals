@@ -55,7 +55,7 @@ export interface IContainer {
   getUpsertRentalItemUseCase(): UpsertRentalItemUseCase;
   getTrackProductUseCase(adminApi: any): TrackProductUseCase;
   getUpdateRentalBasicsUseCase(adminApi: any): UpdateRentalBasicsUseCase;
-  getDeleteRentalItemUseCase(): DeleteRentalItemUseCase;
+  getDeleteRentalItemUseCase(adminApi: any): DeleteRentalItemUseCase;
   getGetRentalItemsForDashboardUseCase(): GetRentalItemsForDashboardUseCase;
 
   // Repositories (for edge cases where use case doesn't exist yet)
@@ -156,8 +156,9 @@ export function createContainer(db: PrismaClient = prisma): IContainer {
       return new UpdateRentalBasicsUseCase(getRentalItemRepo(), adapter);
     },
 
-    getDeleteRentalItemUseCase() {
-      return new DeleteRentalItemUseCase(getRentalItemRepo());
+    getDeleteRentalItemUseCase(adminApi: any) {
+      const adapter = new ShopifyProductAdapter(adminApi);
+      return new DeleteRentalItemUseCase(getRentalItemRepo(), adapter);
     },
 
     getGetRentalItemsForDashboardUseCase() {

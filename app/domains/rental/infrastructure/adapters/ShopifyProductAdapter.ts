@@ -87,4 +87,47 @@ export class ShopifyProductAdapter implements IShopifyProductAdapter {
       return Result.fail(`Couldn't sync product pricing metafield: ${msg}`);
     }
   }
+
+  async deleteRentalPricingMetafield(shopifyProductId: string): Promise<Result<void>> {
+    try {
+      const productGid = `gid://shopify/Product/${shopifyProductId}`;
+      
+      const response = await this.adminApi.graphql(
+        `#graphql
+          mutation DeleteRentalPricingMetafield($productId: ID!) {
+            metafieldsDelete(metafields: [{
+              ownerId: $productId,
+              namespace: "rental",
+              key: "pricing"
+            }]) {
+              deletedMetafields {
+                ownerId
+                namespace
+                key
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+        { variables: { productId: productGid } },
+      );
+
+      const json = await response.json();
+      const errors = json?.data?.metafieldsDelete?.userErrors || [];
+      
+      if (errors.length > 0) {
+        console.warn(`[ShopifyProductAdapter] Failed to delete metafield for product ${shopifyProductId}:`, errors);
+        // Don't fail - metafield might not exist
+      }
+
+      return Result.ok(undefined);
+    } catch (error) {
+      const msg = toErrorMessage(error);
+      console.warn(`[ShopifyProductAdapter] Error deleting metafield for product ${shopifyProductId}:`, msg);
+      // Don't fail - this is best effort
+      return Result.ok(undefined);
+    }
+  }
 }

@@ -32,4 +32,10 @@ export interface IShopifyProductAdapter {
     basePricePerDayCents: number,
     rateTiers: Array<{ minDays: number; pricePerDayCents: number }>
   ): Promise<Result<void, string>>;
+
+  /**
+   * Delete rental pricing metafield from Shopify product.
+   * Called when removing rental tracking from a product.
+   */
+  deleteRentalPricingMetafield(shopifyProductId: string): Promise<Result<void>>;
 }

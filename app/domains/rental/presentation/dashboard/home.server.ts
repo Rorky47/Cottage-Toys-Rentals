@@ -199,7 +199,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!productId) return { ok: false, error: "Missing productId." };
 
     const container = createContainer();
-    const useCase = container.getDeleteRentalItemUseCase();
+    const useCase = container.getDeleteRentalItemUseCase(admin);
     const input: DeleteRentalItemInput = { shop: session.shop, shopifyProductId: productId };
     const result = await useCase.execute(input);
 
