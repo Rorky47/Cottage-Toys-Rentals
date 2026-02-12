@@ -206,9 +206,15 @@
       var API_UNRESERVE = '/unreserve';
       
       // Line item property name constants
-      var PROP_START_DATE = 'Rental Start Date';
-      var PROP_RETURN_DATE = 'Rental Return Date';
-      var PROP_DURATION = 'Rental Duration';
+      // Internal keys (for cart transform) - MUST match run.graphql
+      var PROP_START_DATE_KEY = 'rental_start';
+      var PROP_RETURN_DATE_KEY = 'rental_end';
+      var PROP_DURATION_KEY = 'rental_days';
+      
+      // Display names (shown to customers in emails)
+      var PROP_START_DATE_LABEL = 'Rental Start Date';
+      var PROP_RETURN_DATE_LABEL = 'Rental Return Date';
+      var PROP_DURATION_LABEL = 'Rental Duration';
       var PROP_BOOKING_REF = '_booking_ref';
       
       // Parse original price format to maintain consistency
@@ -416,6 +422,24 @@
         try { localStorage.setItem('cottage_rental_cart', JSON.stringify(items)); } catch (e) {}
       }
 
+      // Helper to create line item properties with both internal keys and display labels
+      function createRentalProperties(start, end, days, bookingRef) {
+        var props = {};
+        // Internal keys (snake_case) - REQUIRED for cart transform to work
+        props[PROP_START_DATE_KEY] = String(start);
+        props[PROP_RETURN_DATE_KEY] = String(end);
+        props[PROP_DURATION_KEY] = String(days);
+        // Display labels (customer-friendly) - shown in order emails
+        props[PROP_START_DATE_LABEL] = String(start);
+        props[PROP_RETURN_DATE_LABEL] = String(end);
+        props[PROP_DURATION_LABEL] = String(days) + ' days';
+        // Booking reference (hidden)
+        if (bookingRef) {
+          props[PROP_BOOKING_REF] = bookingRef;
+        }
+        return props;
+      }
+
       // Helper function to reserve inventory with backend
       async function reserveInventory(start, end, days, units, cartToken) {
         var reserveResp = await fetch(appProxyUrl(API_RESERVE), {
@@ -470,11 +494,7 @@
           var payload = {
             id: String(variantId),
             quantity: u,
-            properties: {
-              PROP_START_DATE: String(start),
-              PROP_RETURN_DATE: String(end),
-              PROP_DURATION: String(days) + ' days'
-            }
+            properties: createRentalProperties(start, end, days)
           };
 
           try {
@@ -507,8 +527,8 @@
                     // variants for this product with the same rental date range.
                     if (String(it.product_id) !== String(productId)) continue;
                     var props = it.properties || {};
-                    if (String(props[PROP_START_DATE] || '') !== String(start)) continue;
-                    if (String(props[PROP_RETURN_DATE] || '') !== String(end)) continue;
+                    if (String(props[PROP_START_DATE_KEY] || '') !== String(start)) continue;
+                    if (String(props[PROP_RETURN_DATE_KEY] || '') !== String(end)) continue;
                     total += Number(it.quantity || 0);
                   }
                   if (isFinite(total) && total > 0) totalUnitsForThisRange = total;
@@ -540,12 +560,7 @@
                       body: JSON.stringify({
                         id: addedKey,
                         quantity: u,
-                        properties: {
-                          PROP_START_DATE: String(start),
-                          PROP_RETURN_DATE: String(end),
-                          PROP_DURATION: String(days) + ' days',
-                          _booking_ref: bookingRef
-                        }
+                        properties: createRentalProperties(start, end, days, bookingRef)
                       })
                     });
                   } catch (e) {}
@@ -595,11 +610,7 @@
               var payload = {
                 id: String(variantId),
                 quantity: u,
-                properties: {
-                  PROP_START_DATE: String(start),
-                  PROP_RETURN_DATE: String(end),
-                  PROP_DURATION: String(days) + ' days'
-                }
+                properties: createRentalProperties(start, end, days)
               };
 
               var resAdd = await fetch('/cart/add.js', {
@@ -631,8 +642,8 @@
                       // variants for this product with the same rental date range.
                       if (String(it.product_id) !== String(productId)) continue;
                       var props = it.properties || {};
-                      if (String(props[PROP_START_DATE] || '') !== String(start)) continue;
-                      if (String(props[PROP_RETURN_DATE] || '') !== String(end)) continue;
+                      if (String(props[PROP_START_DATE_KEY] || '') !== String(start)) continue;
+                      if (String(props[PROP_RETURN_DATE_KEY] || '') !== String(end)) continue;
                       total += Number(it.quantity || 0);
                     }
                     if (isFinite(total) && total > 0) totalUnitsForThisRange = total;
@@ -648,28 +659,6 @@
                         : (String(Date.now()) + '-' + String(Math.random()).slice(2));
                     try { localStorage.setItem(key, cartToken); } catch (e) {}
                   }
-                }
-
-                // Persist cart token onto the line item so webhook handlers can reliably
-                // promote RESERVED(cart:<token>) to CONFIRMED on order paid.
-                if (addedKey) {
-                  try {
-                    await fetch('/cart/change.js', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      credentials: 'same-origin',
-                      body: JSON.stringify({
-                        id: addedKey,
-                        quantity: u,
-                        properties: {
-                          PROP_START_DATE: String(start),
-                          PROP_RETURN_DATE: String(end),
-                          PROP_DURATION: String(days) + ' days',
-                          _cottage_cart_token: String(cartToken)
-                        }
-                      })
-                    });
-                  } catch (e) {}
                 }
 
                 try {
