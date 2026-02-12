@@ -422,17 +422,14 @@
         try { localStorage.setItem('cottage_rental_cart', JSON.stringify(items)); } catch (e) {}
       }
 
-      // Helper to create line item properties with both internal keys and display labels
+      // Helper to create line item properties - all hidden (underscore prefix)
+      // Cart Transform will handle displaying rental dates in a nice format
       function createRentalProperties(start, end, days, bookingRef) {
         var props = {};
-        // Internal keys (hidden with underscore prefix) - REQUIRED for cart transform & webhook
+        // All properties hidden with underscore - Cart Transform reads these
         props['_rental_start'] = String(start);
         props['_rental_end'] = String(end);
         props['_rental_days'] = String(days);
-        // Display labels (customer-friendly) - shown in cart & order emails
-        props['Rental Start Date'] = String(start);
-        props['Rental Return Date'] = String(end);
-        props['Rental Duration'] = String(days) + ' days';
         // Booking reference (hidden)
         if (bookingRef) {
           props['_booking_ref'] = bookingRef;

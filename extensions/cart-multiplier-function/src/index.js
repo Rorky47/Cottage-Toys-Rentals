@@ -89,9 +89,20 @@ export function run(input) {
     const ratio = getTierRatio(line, days);
     const newAmount = (baseAmount * (ratio ?? 1) * days).toFixed(2);
 
+    // Build a nice rental date display
+    const start = line?.rentalStart?.value;
+    const end = line?.rentalEnd?.value;
+    let titleSuffix = '';
+    if (start && end) {
+      titleSuffix = ` (Rental: ${start} to ${end})`;
+    } else if (days) {
+      titleSuffix = ` (${days} day rental)`;
+    }
+
     operations.push({
       lineUpdate: {
         cartLineId: line.id,
+        title: titleSuffix ? `${line.merchandise?.product?.title || 'Product'}${titleSuffix}` : undefined,
         price: {
           adjustment: {
             fixedPricePerUnit: {

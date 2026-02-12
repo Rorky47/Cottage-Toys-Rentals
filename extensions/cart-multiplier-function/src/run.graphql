@@ -2,19 +2,20 @@ query RunInput {
   cart {
     lines {
       id
-      rentalDays: attribute(key: "rental_days") {
+      rentalDays: attribute(key: "_rental_days") {
         value
       }
-      rentalStart: attribute(key: "rental_start") {
+      rentalStart: attribute(key: "_rental_start") {
         value
       }
-      rentalEnd: attribute(key: "rental_end") {
+      rentalEnd: attribute(key: "_rental_end") {
         value
       }
       merchandise {
         __typename
         ... on ProductVariant {
           product {
+            title
             rentalPricing: metafield(namespace: "cottage_rentals", key: "pricing") {
               value
             }
