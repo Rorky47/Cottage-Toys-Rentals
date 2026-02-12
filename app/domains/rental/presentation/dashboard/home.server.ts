@@ -97,16 +97,11 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<HomeLoade
     });
   }
 
-  // Check if merchant has accepted privacy policy (simple CRUD, kept as-is)
-  let privacyAccepted = false;
-  try {
-    const shopSettings = await prisma.shopSettings.findUnique({
-      where: { shop: session.shop },
-    });
-    privacyAccepted = !!shopSettings?.privacyAcceptedAt;
-  } catch (e) {
-    console.warn("[home] ShopSettings table not found, skipping privacy check");
-  }
+  // Check if merchant has accepted privacy policy
+  const privacyContainer = createContainer();
+  const getPrivacyStatus = privacyContainer.getGetShopPrivacyStatusUseCase();
+  const privacyResult = await getPrivacyStatus.execute(session.shop);
+  const privacyAccepted = privacyResult.isSuccess ? privacyResult.value : false;
 
   return { rows, privacyAccepted };
 };
@@ -124,28 +119,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   console.log(`[home.server] Action called with intent: ${intent}`);
 
   // ===== Privacy Acceptance =====
-  // NOTE: This doesn't have a use case yet - simple data update
   if (intent === "accept_privacy") {
     console.log(`[home.server] Processing privacy acceptance for shop: ${session.shop}`);
-    try {
-      await prisma.shopSettings.upsert({
-        where: { shop: session.shop },
-        create: {
-          shop: session.shop,
-          privacyAcceptedAt: new Date(),
-          privacyAcceptedVersion: "2026-02-12",
-        },
-        update: {
-          privacyAcceptedAt: new Date(),
-          privacyAcceptedVersion: "2026-02-12",
-        },
-      });
-      console.log(`[home.server] Privacy accepted successfully for ${session.shop}`);
-      return { ok: true };
-    } catch (error) {
-      console.error(`[home.server] Error accepting privacy:`, error);
-      return { ok: false, error: "Failed to accept privacy policy" };
+    
+    const container = createContainer();
+    const acceptPrivacy = container.getAcceptPrivacyPolicyUseCase();
+    const result = await acceptPrivacy.execute({
+      shop: session.shop,
+      version: "2026-02-12",
+    });
+
+    if (result.isFailure) {
+      console.error(`[home.server] Error accepting privacy:`, result.error);
+      return { ok: false, error: result.error };
     }
+
+    console.log(`[home.server] Privacy accepted successfully for ${session.shop}`);
+    return { ok: true };
   }
 
   // ===== Track Product (Quick Enable) =====
@@ -237,29 +227,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       action: "updated",
       ...(result.value.warning ? { warning: result.value.warning } : {}),
     };
-  }
-
-  // ===== Legacy: Untrack Product (ProductReference table) =====
-  // NOTE: This is an old feature - keeping direct DB access for now
-  if (intent === "untrack_product") {
-    const refId = String(formData.get("refId") ?? "");
-    if (!refId) return { ok: false, error: "Missing refId." };
-    await prisma.productReference.deleteMany({ where: { id: refId, shop: session.shop } });
-    return { ok: true, action: "untracked" };
-  }
-
-  // ===== Legacy: Track Existing Rental (ProductReference table) =====
-  // NOTE: This is an old feature - keeping direct DB access for now
-  if (intent === "track_existing_rental") {
-    const rawProductId = String(formData.get("productId") ?? "");
-    const productId = normalizeShopifyProductId(rawProductId);
-    if (!productId) return { ok: false, error: "Missing productId." };
-    await prisma.productReference.upsert({
-      where: { shop_shopifyProductId: { shop: session.shop, shopifyProductId: productId } },
-      create: { shop: session.shop, shopifyProductId: productId },
-      update: {},
-    });
-    return { ok: true, action: "tracked" };
   }
 
   return { ok: false, error: "Unknown intent" };

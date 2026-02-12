@@ -33,6 +33,11 @@ import { GetRentalItemsForDashboardUseCase } from "~/domains/rental/application/
 // Adapters
 import { ShopifyProductAdapter } from "~/domains/rental/infrastructure/adapters/ShopifyProductAdapter";
 
+// Shop domain
+import { AcceptPrivacyPolicyUseCase } from "~/domains/shop/application/useCases/AcceptPrivacyPolicyUseCase";
+import { GetShopPrivacyStatusUseCase } from "~/domains/shop/application/useCases/GetShopPrivacyStatusUseCase";
+import { PrismaShopSettingsRepository } from "~/domains/shop/infrastructure/persistence/PrismaShopSettingsRepository";
+
 export interface IContainer {
   // Booking domain
   getCheckAvailabilityUseCase(): CheckAvailabilityUseCase;
@@ -58,6 +63,10 @@ export interface IContainer {
   getDeleteRentalItemUseCase(adminApi: any): DeleteRentalItemUseCase;
   getGetRentalItemsForDashboardUseCase(): GetRentalItemsForDashboardUseCase;
 
+  // Shop domain
+  getAcceptPrivacyPolicyUseCase(): AcceptPrivacyPolicyUseCase;
+  getGetShopPrivacyStatusUseCase(): GetShopPrivacyStatusUseCase;
+
   // Repositories (for edge cases where use case doesn't exist yet)
   getBookingRepository(): PrismaBookingRepository;
   getRentalItemRepository(): PrismaRentalItemRepository;
@@ -71,6 +80,7 @@ export function createContainer(db: PrismaClient = prisma): IContainer {
   // Singleton repositories
   let bookingRepo: PrismaBookingRepository | null = null;
   let rentalItemRepo: PrismaRentalItemRepository | null = null;
+  let shopSettingsRepo: PrismaShopSettingsRepository | null = null;
 
   const getBookingRepo = () => {
     if (!bookingRepo) {
@@ -84,6 +94,13 @@ export function createContainer(db: PrismaClient = prisma): IContainer {
       rentalItemRepo = new PrismaRentalItemRepository(db);
     }
     return rentalItemRepo;
+  };
+
+  const getShopSettingsRepo = () => {
+    if (!shopSettingsRepo) {
+      shopSettingsRepo = new PrismaShopSettingsRepository(db);
+    }
+    return shopSettingsRepo;
   };
 
   return {
@@ -163,6 +180,15 @@ export function createContainer(db: PrismaClient = prisma): IContainer {
 
     getGetRentalItemsForDashboardUseCase() {
       return new GetRentalItemsForDashboardUseCase(getRentalItemRepo());
+    },
+
+    // ===== Shop Domain =====
+    getAcceptPrivacyPolicyUseCase() {
+      return new AcceptPrivacyPolicyUseCase(getShopSettingsRepo());
+    },
+
+    getGetShopPrivacyStatusUseCase() {
+      return new GetShopPrivacyStatusUseCase(getShopSettingsRepo());
     },
 
     // Repositories
