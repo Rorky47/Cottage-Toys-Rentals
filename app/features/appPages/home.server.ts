@@ -5,7 +5,10 @@ import { authenticate } from "~/shopify";
 import { toErrorMessage, normalizeShopifyProductId } from "~/utils";
 import type { RentalConfigRow } from "~/features/appPages/types";
 
-export type HomeLoaderData = { rows: RentalConfigRow[] };
+export type HomeLoaderData = { 
+  rows: RentalConfigRow[];
+  privacyAccepted: boolean;
+};
 
 function isMetafieldPermissionError(message: string): boolean {
   const m = message.toLowerCase();
@@ -129,13 +132,35 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<HomeLoade
     });
   }
 
-  return { rows };
+  // Check if merchant has accepted privacy policy
+  const shopSettings = await prisma.shopSettings.findUnique({
+    where: { shop: session.shop },
+  });
+  const privacyAccepted = !!shopSettings?.privacyAcceptedAt;
+
+  return { rows, privacyAccepted };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = String(formData.get("intent") ?? "");
+
+  if (intent === "accept_privacy") {
+    await prisma.shopSettings.upsert({
+      where: { shop: session.shop },
+      create: {
+        shop: session.shop,
+        privacyAcceptedAt: new Date(),
+        privacyAcceptedVersion: "2026-02-12",
+      },
+      update: {
+        privacyAcceptedAt: new Date(),
+        privacyAcceptedVersion: "2026-02-12",
+      },
+    });
+    return { ok: true };
+  }
 
   if (intent === "track_product") {
     const rawProductId = String(formData.get("productId") ?? "");

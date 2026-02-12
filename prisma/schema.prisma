@@ -120,3 +120,14 @@ model Booking {
   @@index([status, orderId])
   @@map("bookings")
 }
+
+model ShopSettings {
+  id                    String   @id @default(cuid())
+  shop                  String   @unique
+  privacyAcceptedAt     DateTime? @map("privacy_accepted_at")
+  privacyAcceptedVersion String? @map("privacy_accepted_version")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("shop_settings")
+}
