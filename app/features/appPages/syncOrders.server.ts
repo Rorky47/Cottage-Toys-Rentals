@@ -1,7 +1,12 @@
-import type { ActionFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import prisma from "~/db.server";
 import { authenticate } from "~/shopify";
 import { countRentalDays, parseDateOnlyToUtcDate } from "~/rental";
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  await authenticate.admin(request);
+  return { ok: true };
+};
 
 type LineItemProperty = { name?: string; value?: string } | { key?: string; value?: string };
 
