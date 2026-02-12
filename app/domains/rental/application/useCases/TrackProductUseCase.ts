@@ -4,20 +4,12 @@ import type { IShopifyProductAdapter } from "../../infrastructure/adapters/IShop
 import { TrackProductInput, TrackProductOutput } from "./dto/TrackProductDto";
 import { RentalItem } from "../../domain/entities/RentalItem";
 import { Money } from "~/shared/kernel/Money";
-// import { invalidateRentalCache } from "~/rental"; // TODO: Week 8 - Abstract cache behind ICacheService interface
 
 /**
  * Use case: Track a Shopify product as a rental item.
  * 
  * Creates or updates a rental configuration for a Shopify product.
- * Fetches product details (title, image, price, inventory) from Shopify
- * and creates rental item with sensible defaults.
- * 
- * Flow:
- * 1. Fetch product info from Shopify (validates product exists)
- * 2. Create/update rental item with defaults from Shopify
- * 3. Sync pricing metafield to Shopify (best effort)
- * 4. Invalidate cache
+ * Fetches product details from Shopify and creates rental item with defaults.
  */
 export class TrackProductUseCase {
   constructor(
@@ -86,11 +78,7 @@ export class TrackProductUseCase {
       rentalItem.rateTiers
     );
 
-    // 5. Invalidate cache
-    // TODO: Week 8 - Cache invalidation should be abstracted behind ICacheService interface
-    // invalidateRentalCache(input.shop, input.shopifyProductId);
-
-    // 6. Return result
+    // Return result
     return Result.ok({
       rentalItemId: rentalItem.id,
       shopifyProductId: input.shopifyProductId,

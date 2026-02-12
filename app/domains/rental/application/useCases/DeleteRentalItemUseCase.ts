@@ -2,7 +2,6 @@ import { Result } from "~/shared/kernel/Result";
 import type { IRentalItemRepository } from "../../infrastructure/repositories/IRentalItemRepository";
 import type { IShopifyProductAdapter } from "../../infrastructure/adapters/IShopifyProductAdapter";
 import { DeleteRentalItemInput, DeleteRentalItemOutput } from "./dto/DeleteRentalItemDto";
-// import { invalidateRentalCache } from "~/rental"; // TODO: Week 8 - Abstract cache behind ICacheService interface
 
 /**
  * Use case: Delete a rental item configuration.
@@ -51,8 +50,6 @@ export class DeleteRentalItemUseCase {
     await this.rentalItemRepo.delete(rentalItem.id);
 
     // 4. Invalidate cache
-    // TODO: Week 8 - Cache invalidation should be abstracted behind ICacheService interface
-    // invalidateRentalCache(input.shop, input.shopifyProductId);
 
     // 5. Return result
     return Result.ok({

@@ -3,20 +3,11 @@ import type { IRentalItemRepository } from "../../infrastructure/repositories/IR
 import type { IShopifyProductAdapter } from "../../infrastructure/adapters/IShopifyProductAdapter";
 import { UpdateRentalBasicsInput, UpdateRentalBasicsOutput } from "./dto/UpdateRentalBasicsDto";
 import { Money } from "~/shared/kernel/Money";
-// import { invalidateRentalCache } from "~/rental"; // TODO: Week 8 - Abstract cache behind ICacheService interface
 
 /**
  * Use case: Update basic rental item properties.
  * 
  * Updates base price per day and quantity for an existing rental item.
- * Used by admin UI when merchant adjusts pricing or inventory.
- * 
- * Flow:
- * 1. Find rental item by ID
- * 2. Update base price and quantity
- * 3. Save to database
- * 4. Sync pricing metafield to Shopify
- * 5. Invalidate cache
  */
 export class UpdateRentalBasicsUseCase {
   constructor(
