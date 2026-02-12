@@ -198,6 +198,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const productId = normalizeShopifyProductId(rawProductId);
     if (!productId) return { ok: false, error: "Missing productId." };
 
+    const container = createContainer();
     const useCase = container.getDeleteRentalItemUseCase();
     const input: DeleteRentalItemInput = { shop: session.shop, shopifyProductId: productId };
     const result = await useCase.execute(input);
@@ -222,6 +223,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!Number.isFinite(cents) || cents < 0) return { ok: false, error: "Invalid base price." };
     if (!Number.isFinite(qty) || qty < 0) return { ok: false, error: "Invalid quantity." };
 
+    const container = createContainer();
     const useCase = container.getUpdateRentalBasicsUseCase(admin);
     const input: UpdateRentalBasicsInput = { shop: session.shop, rentalItemId: rentalItemId, basePricePerDayCents: cents, quantity: qty };
     const result = await useCase.execute(input);
