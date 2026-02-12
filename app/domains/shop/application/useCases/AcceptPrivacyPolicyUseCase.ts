@@ -1,4 +1,4 @@
-import type { Result } from "~/shared/Result";
+import type { Result } from "~/shared/kernel/Result";
 import type { IShopSettingsRepository } from "~/domains/shop/infrastructure/repositories/IShopSettingsRepository";
 import type { AcceptPrivacyPolicyDto } from "../dto/AcceptPrivacyPolicyDto";
 import { ShopSettings } from "~/domains/shop/domain/ShopSettings";

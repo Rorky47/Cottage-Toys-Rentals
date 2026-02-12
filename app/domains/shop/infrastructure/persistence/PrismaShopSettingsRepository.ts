@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import type { IShopSettingsRepository } from "../repositories/IShopSettingsRepository";
 import { ShopSettings } from "~/domains/shop/domain/ShopSettings";
-import { Result } from "~/shared/Result";
+import { Result } from "~/shared/kernel/Result";
 
 /**
  * Prisma implementation of ShopSettings repository

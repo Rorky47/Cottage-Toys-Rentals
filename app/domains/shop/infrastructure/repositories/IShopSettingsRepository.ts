@@ -1,5 +1,5 @@
 import type { ShopSettings } from "~/domains/shop/domain/ShopSettings";
-import type { Result } from "~/shared/Result";
+import type { Result } from "~/shared/kernel/Result";
 
 /**
  * Repository Interface: ShopSettings
