@@ -19,6 +19,7 @@ export default function App() {
           Home
         </Link>
         <Link to="/app/calendar">Rental calendar</Link>
+        <Link to="/app/webhooks">Webhooks</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>
