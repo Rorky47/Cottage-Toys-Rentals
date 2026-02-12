@@ -2,8 +2,6 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { useParams } from "@remix-run/react";
 import type { ComponentType } from "react";
 import CalendarPage from "~/features/appPages/calendar";
-import WebhooksPage from "~/features/appPages/webhooks";
-import SyncOrdersPage from "~/features/appPages/syncOrders";
 
 type PageServerModule = {
   loader: (args: LoaderFunctionArgs) => Promise<unknown>;
@@ -18,12 +16,6 @@ const PAGE_MODULES: Record<string, PageModule> = {
   calendar: {
     Component: CalendarPage,
   },
-  webhooks: {
-    Component: WebhooksPage,
-  },
-  "sync-orders": {
-    Component: SyncOrdersPage,
-  },
 };
 
 function getPageModule(page: string | undefined): PageModule | null {
@@ -34,12 +26,6 @@ function getPageModule(page: string | undefined): PageModule | null {
 async function getServerModule(page: string | undefined): Promise<PageServerModule | null> {
   if (page === "calendar") {
     return import("~/features/appPages/calendar.server");
-  }
-  if (page === "webhooks") {
-    return import("~/features/appPages/webhooks.server");
-  }
-  if (page === "sync-orders") {
-    return import("~/features/appPages/syncOrders.server");
   }
   return null;
 }

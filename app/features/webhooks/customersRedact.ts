@@ -11,7 +11,7 @@ import db from "~/db.server";
  * We must delete or anonymize all data associated with this customer.
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, payload } = await authenticate.webhook(request);
+  const { shop, payload, admin } = await authenticate.webhook(request);
 
   console.log("[GDPR] customers/redact received", { shop, customerId: payload.customer?.id });
 
@@ -24,15 +24,63 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return new Response("OK", { status: 200 });
     }
 
+    // Query Shopify for all orders by this customer
+    const ordersQuery = `#graphql
+      query getCustomerOrders($customerId: ID!) {
+        customer(id: $customerId) {
+          id
+          orders(first: 250) {
+            edges {
+              node {
+                id
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    let orderIds: string[] = [];
+    
+    try {
+      const response = await admin.graphql(ordersQuery, {
+        variables: { customerId: `gid://shopify/Customer/${customerId}` },
+      });
+      
+      const data = await response.json();
+      const orders = data?.data?.customer?.orders?.edges || [];
+      
+      // Extract numeric order IDs from Shopify GIDs
+      orderIds = orders
+        .map((edge: any) => edge.node.id)
+        .map((gid: string) => gid.replace("gid://shopify/Order/", ""));
+      
+      console.log(`[GDPR] Found ${orderIds.length} orders for customer ${customerId}`);
+    } catch (apiError) {
+      console.error("[GDPR] Error fetching customer orders from Shopify:", apiError);
+      // Continue with empty order list - nothing to delete
+      return new Response("OK", { status: 200 });
+    }
+
+    if (orderIds.length === 0) {
+      console.log("[GDPR] No orders found for customer, nothing to delete");
+      return new Response("OK", { status: 200 });
+    }
+
     // Delete all bookings associated with this customer's orders
-    // Note: Bookings are linked to orders, not directly to customers.
-    // A full implementation would query Shopify API for customer's orders,
-    // then delete bookings for those orders.
-    console.log("[GDPR] Customer redaction processed:", {
+    const deletedBookings = await db.booking.deleteMany({
+      where: {
+        orderId: { in: orderIds },
+        rentalItem: { shop },
+      },
+    });
+
+    console.log("[GDPR] Customer data redacted:", {
       shop,
       customerId,
       customerEmail,
-      note: "Bookings are linked to orders. Full implementation requires order lookup via Shopify API to find and delete associated bookings.",
+      ordersChecked: orderIds.length,
+      bookingsDeleted: deletedBookings.count,
     });
 
     // The rental items themselves (products, pricing) remain for the merchant
