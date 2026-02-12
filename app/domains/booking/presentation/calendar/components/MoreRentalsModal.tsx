@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { Form } from "@remix-run/react";
 import { BlockStack, Button, Modal, Text } from "@shopify/polaris";
-import type { BookingRow } from "~/features/calendar/types";
-import { dateOnlyToUtcMs } from "~/features/calendar/date";
-import { bookingMethodLabel, bookingTheme } from "~/features/calendar/styles";
+import type { BookingRow } from "~/domains/booking/presentation/calendar/utils/types";
+import { dateOnlyToUtcMs } from "~/domains/booking/presentation/calendar/utils/date";
+import { bookingMethodLabel, bookingTheme } from "~/domains/booking/presentation/calendar/utils/styles";
 import { orderGidToAdminUrl } from "~/utils";
 
 export function MoreRentalsModal(props: {

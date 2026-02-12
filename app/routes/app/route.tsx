@@ -4,10 +4,10 @@ import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
-import type { loader as appLoader } from "~/features/appPages/appLayout.server";
+import type { loader as appLoader } from "~/shared/presentation/layout/appLayout.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
-export { loader } from "~/features/appPages/appLayout.server";
+export { loader } from "~/shared/presentation/layout/appLayout.server";
 
 export default function App() {
   const { apiKey } = useLoaderData<typeof appLoader>();

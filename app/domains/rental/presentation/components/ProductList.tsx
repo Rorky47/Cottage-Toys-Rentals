@@ -1,6 +1,6 @@
 import { Badge, BlockStack, Box, Card, InlineStack, Text } from "@shopify/polaris";
-import type { RentalConfigRow, RentalFetcher } from "~/features/appPages/types";
-import { ProductCard } from "~/features/appPages/components/ProductCard";
+import type { RentalConfigRow, RentalFetcher } from "~/domains/rental/presentation/types";
+import { ProductCard } from "~/domains/rental/presentation/components/ProductCard";
 
 type Props = {
   rows: RentalConfigRow[];

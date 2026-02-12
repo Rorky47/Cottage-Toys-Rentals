@@ -1,10 +1,10 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
-import { action as ordersPaidAction } from "~/features/webhooks/ordersPaid";
-import { action as appScopesUpdateAction } from "~/features/webhooks/appScopesUpdate";
-import { action as appUninstalledAction } from "~/features/webhooks/appUninstalled";
-import { action as customersDataRequestAction } from "~/features/webhooks/customersDataRequest";
-import { action as customersRedactAction } from "~/features/webhooks/customersRedact";
-import { action as shopRedactAction } from "~/features/webhooks/shopRedact";
+import { action as ordersPaidAction } from "~/domains/booking/presentation/webhooks/ordersPaid";
+import { action as appScopesUpdateAction } from "~/shared/presentation/webhooks/appScopesUpdate";
+import { action as appUninstalledAction } from "~/shared/presentation/webhooks/appUninstalled";
+import { action as customersDataRequestAction } from "~/shared/presentation/webhooks/customersDataRequest";
+import { action as customersRedactAction } from "~/shared/presentation/webhooks/customersRedact";
+import { action as shopRedactAction } from "~/shared/presentation/webhooks/shopRedact";
 
 const TOPIC_ACTIONS: Record<string, (args: ActionFunctionArgs) => Promise<Response>> = {
   "orders/paid": ordersPaidAction,

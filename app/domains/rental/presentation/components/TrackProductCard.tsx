@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { Autocomplete, Icon, BlockStack, Card, Text } from "@shopify/polaris";
 import { SearchIcon } from "@shopify/polaris-icons";
-import type { RentalFetcher } from "~/features/appPages/types";
+import type { RentalFetcher } from "~/domains/rental/presentation/types";
 
 type Props = {
   fetcher: RentalFetcher;

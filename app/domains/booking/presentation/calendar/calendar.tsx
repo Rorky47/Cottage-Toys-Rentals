@@ -16,8 +16,8 @@ import {
   CalendarMonthNav,
   CalendarWeekRow,
   MoreRentalsModal,
-} from "~/features/calendar";
-import type { CalendarActionData, CalendarLoaderData } from "~/features/appPages/calendar.server";
+} from "~/domains/booking/presentation/calendar/utils";
+import type { CalendarActionData, CalendarLoaderData } from "~/domains/booking/presentation/calendar/calendar.server";
 
 export default function CalendarPage() {
   const { year, month, rows, todayDate } = useLoaderData<CalendarLoaderData>();

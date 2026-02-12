@@ -1,4 +1,4 @@
-import type { WeekCell } from "~/features/calendar/types";
+import type { WeekCell } from "~/domains/booking/presentation/calendar/utils/types";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 

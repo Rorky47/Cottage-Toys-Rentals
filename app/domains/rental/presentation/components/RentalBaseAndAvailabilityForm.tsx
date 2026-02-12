@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Box, Button, InlineStack, TextField } from "@shopify/polaris";
-import type { RentalConfigRow, RentalFetcher } from "~/features/appPages/types";
+import type { RentalConfigRow, RentalFetcher } from "~/domains/rental/presentation/types";
 
 export function RentalBaseAndAvailabilityForm({ fetcher, row }: { fetcher: RentalFetcher; row: RentalConfigRow }) {
   const rental = row.rentalItem!;

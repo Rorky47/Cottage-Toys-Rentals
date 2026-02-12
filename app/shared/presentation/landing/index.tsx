@@ -1,6 +1,6 @@
 import { Form, useLoaderData } from "@remix-run/react";
 import styles from "~/routes/_index/styles.module.css";
-import type { loader } from "~/features/landing/index.server";
+import type { loader } from "~/shared/presentation/landing/index.server";
 
 export default function LandingPage() {
   const { showForm } = useLoaderData<typeof loader>();

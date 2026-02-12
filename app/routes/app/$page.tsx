@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { useParams } from "@remix-run/react";
 import type { ComponentType } from "react";
-import CalendarPage from "~/features/appPages/calendar";
+import CalendarPage from "~/domains/booking/presentation/calendar/calendar";
 
 type PageServerModule = {
   loader: (args: LoaderFunctionArgs) => Promise<unknown>;
@@ -25,7 +25,7 @@ function getPageModule(page: string | undefined): PageModule | null {
 
 async function getServerModule(page: string | undefined): Promise<PageServerModule | null> {
   if (page === "calendar") {
-    return import("~/features/appPages/calendar.server");
+    return import("~/domains/booking/presentation/calendar/calendar.server");
   }
   return null;
 }

@@ -9,7 +9,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import type { action, LoginLoaderData } from "~/features/auth/login.server";
+import type { action, LoginLoaderData } from "~/shared/presentation/auth/login.server";
 
 export default function AuthLogin() {
   const loaderData = useLoaderData<LoginLoaderData>();

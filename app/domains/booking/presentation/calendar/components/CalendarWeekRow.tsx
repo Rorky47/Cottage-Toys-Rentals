@@ -1,5 +1,5 @@
-import type { Segment, WeekCell } from "~/features/calendar/types";
-import { BookingBar } from "~/features/calendar/components/BookingBar";
+import type { Segment, WeekCell } from "~/domains/booking/presentation/calendar/utils/types";
+import { BookingBar } from "~/domains/booking/presentation/calendar/components/BookingBar";
 
 export function CalendarWeekRow(props: {
   week: WeekCell[];

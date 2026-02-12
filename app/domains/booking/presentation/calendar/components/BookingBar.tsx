@@ -1,5 +1,5 @@
-import { bookingBarStyle } from "~/features/calendar/styles";
-import type { Segment } from "~/features/calendar/types";
+import { bookingBarStyle } from "~/domains/booking/presentation/calendar/utils/styles";
+import type { Segment } from "~/domains/booking/presentation/calendar/utils/types";
 
 export function BookingBar(props: { segment: Segment; laneHeightPx: number }) {
   const { segment, laneHeightPx } = props;

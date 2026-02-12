@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { BookingStatus, FulfillmentMethod } from "~/features/calendar/types";
+import type { BookingStatus, FulfillmentMethod } from "~/domains/booking/presentation/calendar/utils/types";
 
 export function bookingMethodLabel(status: BookingStatus, fulfillmentMethod: FulfillmentMethod): string | null {
   if (status === "RETURNED") return "Returned";

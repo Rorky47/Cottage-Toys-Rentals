@@ -1,3 +1,3 @@
-export { loader, action } from "~/features/appPages/home.server";
-export { default } from "~/features/appPages/home";
+export { loader, action } from "~/domains/rental/presentation/dashboard/home.server";
+export { default } from "~/domains/rental/presentation/dashboard/home";
 

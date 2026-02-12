@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import prisma from "~/db.server";
 import { authenticate } from "~/shopify";
 import { normalizeShopifyProductId } from "~/utils";
-import type { RentalConfigRow } from "~/features/appPages/types";
+import type { RentalConfigRow } from "~/domains/rental/presentation/types";
 import { createContainer } from "~/shared/container";
 import type { TrackProductInput } from "~/domains/rental/application/useCases/dto/TrackProductDto";
 import type { UpdateRentalBasicsInput } from "~/domains/rental/application/useCases/dto/UpdateRentalBasicsDto";

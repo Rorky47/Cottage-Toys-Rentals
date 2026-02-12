@@ -1,6 +1,6 @@
-import type { BookingRow, Segment } from "~/features/calendar/types";
-import { DAY_MS, dateOnlyToUtcMs } from "~/features/calendar/date";
-import { bookingMethodLabel } from "~/features/calendar/styles";
+import type { BookingRow, Segment } from "~/domains/booking/presentation/calendar/utils/types";
+import { DAY_MS, dateOnlyToUtcMs } from "~/domains/booking/presentation/calendar/utils/date";
+import { bookingMethodLabel } from "~/domains/booking/presentation/calendar/utils/styles";
 import { orderGidToAdminUrl } from "~/utils";
 
 function clamp(n: number, min: number, max: number): number {

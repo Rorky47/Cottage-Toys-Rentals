@@ -2,12 +2,12 @@ import { useEffect, useMemo } from "react";
 import { useFetcher, useLoaderData } from "@remix-run/react";
 import { BlockStack, Page } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
-import type { RentalConfigRow } from "~/features/appPages/types";
-import { TrackProductCard } from "~/features/appPages/components/TrackProductCard";
-import { ProductList } from "~/features/appPages/components/ProductList";
-import { PrivacyBanner } from "~/features/appPages/components/PrivacyBanner";
-import type { HomeLoaderData } from "~/features/appPages/home.server";
-import type { action } from "~/features/appPages/home.server";
+import type { RentalConfigRow } from "~/domains/rental/presentation/types";
+import { TrackProductCard } from "~/domains/rental/presentation/components/TrackProductCard";
+import { ProductList } from "~/domains/rental/presentation/components/ProductList";
+import { PrivacyBanner } from "~/domains/rental/presentation/components/PrivacyBanner";
+import type { HomeLoaderData } from "~/domains/rental/presentation/dashboard/home.server";
+import type { action } from "~/domains/rental/presentation/dashboard/home.server";
 
 export default function RentalsHome() {
   const { rows, privacyAccepted } = useLoaderData<HomeLoaderData>();

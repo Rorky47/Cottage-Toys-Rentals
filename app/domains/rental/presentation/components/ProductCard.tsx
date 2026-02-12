@@ -1,7 +1,7 @@
 import { Badge, BlockStack, Box, Button, InlineStack, Text } from "@shopify/polaris";
-import type { RentalConfigRow, RentalFetcher } from "~/features/appPages/types";
-import { RentalBaseAndAvailabilityForm } from "~/features/appPages/components/RentalBaseAndAvailabilityForm";
-import { PricingCard } from "~/features/appPages/components/PricingCard";
+import type { RentalConfigRow, RentalFetcher } from "~/domains/rental/presentation/types";
+import { RentalBaseAndAvailabilityForm } from "~/domains/rental/presentation/components/RentalBaseAndAvailabilityForm";
+import { PricingCard } from "~/domains/rental/presentation/components/PricingCard";
 
 type Props = {
   row: RentalConfigRow;

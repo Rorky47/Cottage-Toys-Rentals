@@ -1,2 +1,2 @@
-export { loader } from "~/features/auth/auth.server";
+export { loader } from "~/shared/presentation/auth/auth.server";
 

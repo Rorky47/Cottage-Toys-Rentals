@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { BlockStack, Button, Card, InlineStack, Text, TextField, Box } from "@shopify/polaris";
-import type { RentalConfigRow, RentalFetcher } from "~/features/appPages/types";
+import type { RentalConfigRow, RentalFetcher } from "~/domains/rental/presentation/types";
 
 type Props = {
   fetcher: RentalFetcher;

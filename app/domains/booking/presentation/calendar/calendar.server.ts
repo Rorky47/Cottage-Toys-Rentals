@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { authenticate } from "~/shopify";
-import { toDateOnly, isBookingStatus, isFulfillmentMethod, type BookingRow } from "~/features/calendar";
+import { toDateOnly, isBookingStatus, isFulfillmentMethod, type BookingRow } from "~/domains/booking/presentation/calendar/utils";
 import { createContainer } from "~/shared/container";
 
 export type CalendarLoaderData = { year: number; month: number; rows: BookingRow[]; todayDate: string };
