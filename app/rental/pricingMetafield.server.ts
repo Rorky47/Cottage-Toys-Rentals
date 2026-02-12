@@ -1,22 +1,17 @@
 /**
- * @deprecated This file will be migrated to an adapter pattern in Week 8.
+ * Shopify metafield sync for rental pricing.
+ * Updates product metafields so themes can display rental rates without API calls.
  * 
- * **Future replacement**: `ShopifyMetafieldAdapter` (to be created)
- * 
- * **Migration planned for**: Week 8 (Infrastructure Abstractions)
- * 
- * **Why keep for now**: 
- * - Still functional and needed
- * - Will be refactored with proper adapter pattern
- * - Low priority (infrastructure concern)
- * 
- * **Status**: KEEP UNTIL WEEK 8
+ * **Status**: Active and working
+ * **Future improvement**: Could be abstracted to ShopifyMetafieldAdapter pattern
+ * **Current usage**: Called by ShopifyProductAdapter when products are tracked/updated
  */
 
 export type RentalPricingTier = { minDays: number; pricePerDayCents: number };
 
 /**
- * @deprecated Will be replaced with ShopifyMetafieldAdapter
+ * Syncs rental pricing configuration to Shopify product metafields.
+ * This allows themes to display pricing without API calls.
  */
 export async function syncRentalPricingMetafieldForProduct(opts: {
   admin: any;

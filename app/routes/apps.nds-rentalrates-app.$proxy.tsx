@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { quoteLoader, unreserveAction, checkoutAction } from "~/rental";
+import { quoteLoader, unreserveAction } from "~/rental";
 import { reserveActionNew } from "~/domains/booking/presentation/routes/reserve.new";
 import { validateAppProxySignature } from "~/utils/appProxyAuth";
 
@@ -68,7 +68,7 @@ export const loader = async (args: LoaderFunctionArgs) => {
     const response = await quoteLoader(args);
     return addCorsHeaders(response);
   }
-  if (proxy === "reserve" || proxy === "unreserve" || proxy === "checkout") {
+  if (proxy === "reserve" || proxy === "unreserve") {
     return createCorsResponse({ ok: false, error: "Method Not Allowed" }, { status: 405 });
   }
   return createCorsResponse({ ok: false, error: "Not Found" }, { status: 404 });
@@ -96,10 +96,6 @@ export const action = async (args: ActionFunctionArgs) => {
   }
   if (proxy === "unreserve") {
     const response = await unreserveAction(args);
-    return addCorsHeaders(response);
-  }
-  if (proxy === "checkout") {
-    const response = await checkoutAction(args);
     return addCorsHeaders(response);
   }
   return createCorsResponse({ ok: false, error: "Not Found" }, { status: 404 });
