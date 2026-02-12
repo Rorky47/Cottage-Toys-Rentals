@@ -65,3 +65,12 @@ export function buildSegmentsForWeek(weekStartMs: number, rows: BookingRow[]): S
   return packed;
 }
 
+/**
+ * Calculate the maximum lane number used in segments.
+ * Returns the number of lanes needed (max lane + 1).
+ */
+export function getMaxLaneCount(segments: Segment[]): number {
+  if (segments.length === 0) return 0;
+  return Math.max(...segments.map(s => s.lane)) + 1;
+}
+

@@ -26,15 +26,8 @@ export function CalendarWeekRow(props: {
     todayUtcMs,
   } = props;
 
-  const rowCount = visibleLaneCount + 1; // day header row + fixed visible lanes
+  const rowCount = visibleLaneCount + 1; // day header row + dynamic visible lanes
   const gridTemplateRows = `${dayHeaderHeightPx}px repeat(${visibleLaneCount}, ${laneHeightPx}px)`;
-
-  const hiddenByCol = [0, 0, 0, 0, 0, 0, 0];
-  for (const s of segments) {
-    if (s.lane < visibleLaneCount) continue;
-    const end = Math.min(6, s.colStart + s.colSpan - 1);
-    for (let c = s.colStart; c <= end; c++) hiddenByCol[c] += 1;
-  }
 
   return (
     <div
@@ -80,38 +73,14 @@ export function CalendarWeekRow(props: {
           >
             {c.dayNumber}
           </div>
-
-          {hiddenByCol[colIdx] > 0 ? (
-            <button
-              type="button"
-              onClick={() => onMoreClick(c.date)}
-              style={{
-                position: "absolute",
-                left: 6,
-                bottom: 6,
-                zIndex: 2,
-                border: "1px solid #D1D5DB",
-                background: "#FFFFFF",
-                color: "#374151",
-                borderRadius: 999,
-                fontSize: 11,
-                padding: "2px 8px",
-                cursor: "pointer",
-              }}
-            >
-              +{hiddenByCol[colIdx]}
-            </button>
-          ) : null}
         </div>
           );
         })()
       ))}
 
-      {segments
-        .filter((s) => s.lane < visibleLaneCount)
-        .map((s) => (
-          <BookingBar key={s.id} segment={s} laneHeightPx={laneHeightPx} />
-        ))}
+      {segments.map((s) => (
+        <BookingBar key={s.id} segment={s} laneHeightPx={laneHeightPx} />
+      ))}
     </div>
   );
 }

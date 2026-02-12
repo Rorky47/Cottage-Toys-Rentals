@@ -7,11 +7,12 @@ import {
   toDateOnly,
   DAY_MS,
   WEEKDAY_LABELS,
-  VISIBLE_LANES,
+  MIN_VISIBLE_LANES,
   DAY_HEADER_HEIGHT_PX,
   LANE_HEIGHT_PX,
   type BookingRow,
   buildSegmentsForWeek,
+  getMaxLaneCount,
   CalendarMonthNav,
   CalendarWeekRow,
   MoreRentalsModal,
@@ -65,6 +66,11 @@ export default function CalendarPage() {
     return weeks.map((_, w) => buildSegmentsForWeek(calendarStartMs + w * 7 * DAY_MS, rows));
   }, [calendarStartMs, rows, weeks]);
 
+  // Calculate actual lane count needed for each week (min 3 for consistent sizing)
+  const laneCountByWeek = useMemo(() => {
+    return segmentsByWeek.map(segments => Math.max(MIN_VISIBLE_LANES, getMaxLaneCount(segments)));
+  }, [segmentsByWeek]);
+
   return (
     <Page>
       <TitleBar title="Rental calendar" />
@@ -112,7 +118,7 @@ export default function CalendarPage() {
                     weekIndex={w}
                     weekCount={weekCount}
                     segments={segmentsByWeek[w] ?? []}
-                    visibleLaneCount={VISIBLE_LANES}
+                    visibleLaneCount={laneCountByWeek[w] ?? MIN_VISIBLE_LANES}
                     dayHeaderHeightPx={DAY_HEADER_HEIGHT_PX}
                     laneHeightPx={LANE_HEIGHT_PX}
                     onMoreClick={(date) => {
