@@ -618,10 +618,34 @@
           if (startDt && endDt) {
             var days = diffDaysInclusive(startDt, endDt);
             if (isFinite(days) && days > 0) {
+              // Step 1: Get cart token first
+              var cartToken = null;
+              try {
+                var cartResp = await fetch('/cart.js', { credentials: 'same-origin' });
+                var cartJson = await cartResp.json();
+                if (cartJson && cartJson.token) cartToken = String(cartJson.token);
+              } catch (e) {}
+              if (!cartToken) {
+                var key = 'cottage_cart_token';
+                cartToken = localStorage.getItem(key);
+                if (!cartToken) {
+                  cartToken =
+                    (window.crypto && window.crypto.randomUUID)
+                      ? window.crypto.randomUUID()
+                      : (String(Date.now()) + '-' + String(Math.random()).slice(2));
+                  try { localStorage.setItem(key, cartToken); } catch (e) {}
+                }
+              }
+
+              // Step 2: Reserve inventory FIRST to get bookingRef
+              var reserveData = await reserveInventory(start, end, days, u, cartToken);
+              var bookingRef = (reserveData && reserveData.bookingRef) ? String(reserveData.bookingRef) : null;
+              
+              // Step 3: Add to cart WITH booking reference
               var payload = {
                 id: String(variantId),
                 quantity: u,
-                properties: createRentalProperties(start, end, days)
+                properties: createRentalProperties(start, end, days, bookingRef)
               };
 
               var resAdd = await fetch('/cart/add.js', {
@@ -630,66 +654,22 @@
                 credentials: 'same-origin',
                 body: JSON.stringify(payload)
               });
-              if (!resAdd.ok) throw new Error('Failed to add to cart');
-              var addedItem = null;
-              try { addedItem = await resAdd.json(); } catch (e) {}
-              var addedKey = addedItem && addedItem.key ? String(addedItem.key) : null;
-
-              // Reserve inventory in-app before redirecting to checkout.
-              var reserveErr = null;
-              try {
-                var cartToken = null;
-                var totalUnitsForThisRange = u;
-                try {
-                  var cartResp = await fetch('/cart.js', { credentials: 'same-origin' });
-                  var cartJson = await cartResp.json();
-                  if (cartJson && cartJson.token) cartToken = String(cartJson.token);
-                  if (cartJson && Array.isArray(cartJson.items)) {
-                    var total = 0;
-                    for (var i = 0; i < cartJson.items.length; i++) {
-                      var it = cartJson.items[i];
-                      if (!it) continue;
-                      // Reserve at the *product* level (RentalItem keys by productId), so count all
-                      // variants for this product with the same rental date range.
-                      if (String(it.product_id) !== String(productId)) continue;
-                      var props = it.properties || {};
-                      if (String(props[PROP_START_DATE_KEY] || '') !== String(start)) continue;
-                      if (String(props[PROP_RETURN_DATE_KEY] || '') !== String(end)) continue;
-                      total += Number(it.quantity || 0);
-                    }
-                    if (isFinite(total) && total > 0) totalUnitsForThisRange = total;
-                  }
-                } catch (e) {}
-                if (!cartToken) {
-                  var key = 'cottage_cart_token';
-                  cartToken = localStorage.getItem(key);
-                  if (!cartToken) {
-                    cartToken =
-                      (window.crypto && window.crypto.randomUUID)
-                        ? window.crypto.randomUUID()
-                        : (String(Date.now()) + '-' + String(Math.random()).slice(2));
-                    try { localStorage.setItem(key, cartToken); } catch (e) {}
-                  }
+              if (!resAdd.ok) {
+                // If cart add fails, unreserve the booking
+                if (bookingRef) {
+                  try {
+                    await fetch(appProxyUrl(API_UNRESERVE), {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'same-origin',
+                      body: JSON.stringify({ booking_ref: bookingRef })
+                    });
+                  } catch (e) {}
                 }
-
-                try {
-                  await reserveInventory(start, end, days, totalUnitsForThisRange, cartToken);
-                } catch (e) {
-                  // Remove cart item if reservation failed
-                  if (addedKey) {
-                    try {
-                      await fetch('/cart/change.js', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'same-origin',
-                        body: JSON.stringify({ id: addedKey, quantity: 0 })
-                      });
-                    } catch (e2) {}
-                  }
-                  reserveErr = e;
-                }
-              } catch (e) { reserveErr = e; }
-              if (reserveErr) throw reserveErr;
+                throw new Error('Failed to add to cart');
+              }
+              
+              console.log('[rental] Added to cart for checkout with booking ref:', bookingRef);
             }
           }
 
@@ -738,95 +718,95 @@
         return appProxyBasePath + pathAndQuery;
       }
 
+      function unreserveBooking(bookingRef) {
+        if (!bookingRef) return;
+        console.log('[rental] Unreserving booking:', bookingRef);
+        fetch(appProxyUrl(API_UNRESERVE), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ booking_ref: String(bookingRef) })
+        }).then(function(res) {
+          if (res.ok) {
+            console.log('[rental] Successfully unreserved booking:', bookingRef);
+          }
+        }).catch(function(e) {
+          console.warn('[rental] Failed to unreserve booking:', e);
+        });
+      }
+
+      // Store current cart state to detect removals
+      var currentCart = null;
+      
+      function loadCurrentCart() {
+        return fetch('/cart.js', { credentials: 'same-origin' })
+          .then(function(res) { return res.json(); })
+          .then(function(cart) {
+            currentCart = cart;
+            return cart;
+          })
+          .catch(function() { return null; });
+      }
+
+      // Initial load
+      loadCurrentCart();
+
       // Intercept cart changes to detect removals
       var originalFetch = window.fetch;
       window.fetch = function(url, options) {
         var isFetchCall = arguments.length > 0;
         var promise = originalFetch.apply(this, arguments);
         
-        // Detect cart change/update API calls
+        // Detect cart modification API calls
         if (isFetchCall && typeof url === 'string' && 
             (url.includes('/cart/change.js') || url.includes('/cart/update.js'))) {
           
-          // Try to extract booking_ref from request body if quantity is being set to 0
-          if (options && options.body) {
-            try {
-              var requestData = JSON.parse(options.body);
-              // /cart/change.js with quantity 0 means removal
-              if (requestData.quantity === 0 && requestData.line) {
-                // Need to get current cart to find the booking_ref
-                fetch('/cart.js')
-                  .then(function(res) { return res.json(); })
-                  .then(function(cart) {
-                    if (cart.items && cart.items[requestData.line - 1]) {
-                      var item = cart.items[requestData.line - 1];
-                      if (item.properties && item.properties._booking_ref) {
-                        var bookingRef = String(item.properties._booking_ref);
-                        fetch(appProxyUrl(API_UNRESERVE), {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          credentials: 'same-origin',
-                          body: JSON.stringify({ booking_ref: bookingRef })
-                        }).catch(function(e) {
-                          console.warn('Failed to unreserve booking:', e);
-                        });
+          // Capture current cart state BEFORE the change
+          var cartBeforeChange = currentCart;
+          
+          // After the change completes, check what was removed
+          promise.then(function(response) {
+            // Wait a moment for cart to update
+            setTimeout(function() {
+              loadCurrentCart().then(function(newCart) {
+                if (!cartBeforeChange || !newCart) return;
+                
+                // Build a map of bookingRefs still in cart
+                var remainingBookingRefs = {};
+                if (newCart.items) {
+                  newCart.items.forEach(function(item) {
+                    if (item.properties && item.properties._booking_ref) {
+                      remainingBookingRefs[item.properties._booking_ref] = true;
+                    }
+                  });
+                }
+                
+                // Check if any bookings were removed
+                if (cartBeforeChange.items) {
+                  cartBeforeChange.items.forEach(function(item) {
+                    if (item.properties && item.properties._booking_ref) {
+                      var bookingRef = item.properties._booking_ref;
+                      if (!remainingBookingRefs[bookingRef]) {
+                        // This booking was removed from cart
+                        unreserveBooking(bookingRef);
                       }
                     }
-                  })
-                  .catch(function() {});
-              }
-              // /cart/update.js with updates object containing line: 0
-              if (requestData.updates) {
-                fetch('/cart.js')
-                  .then(function(res) { return res.json(); })
-                  .then(function(cart) {
-                    Object.keys(requestData.updates).forEach(function(lineKey) {
-                      var qty = requestData.updates[lineKey];
-                      if (qty === 0) {
-                        var lineIndex = parseInt(lineKey, 10) - 1;
-                        if (cart.items && cart.items[lineIndex]) {
-                          var item = cart.items[lineIndex];
-                          if (item.properties && item.properties._booking_ref) {
-                            var bookingRef = String(item.properties._booking_ref);
-                            fetch(appProxyUrl(API_UNRESERVE), {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              credentials: 'same-origin',
-                              body: JSON.stringify({ booking_ref: bookingRef })
-                            }).catch(function(e) {
-                              console.warn('Failed to unreserve booking:', e);
-                            });
-                          }
-                        }
-                      }
-                    });
-                  })
-                  .catch(function() {});
-              }
-            } catch (e) {}
-          }
-          
-          // Also check response for confirmation
-          promise.then(function(response) {
-            response.clone().json().then(function(data) {
-              // If quantity is 0, item was removed
-              if (data && data.quantity === 0 && data.properties && data.properties._booking_ref) {
-                var bookingRef = String(data.properties._booking_ref);
-                fetch(appProxyUrl(API_UNRESERVE), {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  credentials: 'same-origin',
-                  body: JSON.stringify({ booking_ref: bookingRef })
-                }).catch(function(e) {
-                  console.warn('Failed to unreserve booking:', e);
-                });
-              }
-            }).catch(function() {});
+                  });
+                }
+              });
+            }, 100);
           }).catch(function() {});
         }
         
         return promise;
       };
+
+      // Also listen for cart:updated events from themes
+      if (typeof document !== 'undefined') {
+        document.addEventListener('cart:updated', function() {
+          setTimeout(function() { loadCurrentCart(); }, 100);
+        });
+      }
     })();
   </script>
 </div>

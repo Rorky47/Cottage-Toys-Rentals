@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { checkoutAction, quoteLoader, reserveAction, unreserveAction } from "~/rental";
+import { quoteLoader, unreserveAction, checkoutAction } from "~/rental";
+import { reserveActionNew } from "~/domains/booking/presentation/routes/reserve.new";
 import { validateAppProxySignature } from "~/utils/appProxyAuth";
 
 function addCorsHeaders(response: Response): Response {
@@ -90,7 +91,7 @@ export const action = async (args: ActionFunctionArgs) => {
   }
   
   if (proxy === "reserve") {
-    const response = await reserveAction(args);
+    const response = await reserveActionNew(args);
     return addCorsHeaders(response);
   }
   if (proxy === "unreserve") {

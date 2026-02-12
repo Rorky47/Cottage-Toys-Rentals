@@ -2,6 +2,16 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { authenticate } from "~/shopify";
 
+/**
+ * @deprecated DEPRECATED - This endpoint is no longer functional
+ * 
+ * **Status**: Draft Orders disabled due to Shopify protected customer data rules
+ * 
+ * **Timeline**: Can be deleted in Week 5
+ * 
+ * **Current behavior**: Returns 410 Gone
+ */
+
 export const checkoutAction = async ({ request }: ActionFunctionArgs) => {
   if (request.method.toUpperCase() !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });

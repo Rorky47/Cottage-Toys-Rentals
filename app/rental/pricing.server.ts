@@ -1,3 +1,24 @@
+/**
+ * @deprecated This file is part of the old architecture and will be removed in Week 5.
+ * 
+ * **Use instead**: `CalculatePricingUseCase` from `~/domains/pricing/application/useCases/CalculatePricingUseCase`
+ * 
+ * **Migration path**:
+ * ```typescript
+ * // Old:
+ * import { calculatePrice } from "~/rental/pricing.server";
+ * const quote = calculatePrice({ startDate, endDate, units, basePricePerDayCents, tiers });
+ * 
+ * // New:
+ * import { container } from "~/shared/container";
+ * const useCase = container.getCalculatePricingUseCase();
+ * const result = await useCase.execute({ rentalItemId, durationDays });
+ * const quote = result.value;
+ * ```
+ * 
+ * **Benefits**: Type-safe Result handling, testable with mocks, reusable across routes/webhooks.
+ */
+
 export type DateOnlyString = `${number}-${number}-${number}`; // YYYY-MM-DD (validated at runtime)
 
 export type RateTier = {

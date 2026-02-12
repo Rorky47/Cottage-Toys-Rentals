@@ -1,6 +1,19 @@
 /**
  * In-memory cache for rental item + rate tiers (quote path).
  * TTL 1 hour. For multi-instance deployment, replace with Redis.
+ * 
+ * @deprecated This file will be abstracted in Week 8 (Infrastructure Abstractions).
+ * 
+ * **Future replacement**: `ICacheService` interface with Redis implementation
+ * 
+ * **Migration planned for**: Week 8
+ * 
+ * **Why keep for now**:
+ * - Still functional and performs well for single-instance
+ * - Will be abstracted behind interface for Redis/multi-instance support
+ * - Used by old pricing/availability code (being phased out)
+ * 
+ * **Status**: KEEP UNTIL WEEK 8 - Infrastructure phase
  */
 
 const TIER_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour

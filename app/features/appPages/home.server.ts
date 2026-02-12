@@ -1,36 +1,17 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import prisma from "~/db.server";
-import { invalidateRentalCache, syncRentalPricingMetafieldForProduct } from "~/rental";
 import { authenticate } from "~/shopify";
-import { toErrorMessage, normalizeShopifyProductId } from "~/utils";
+import { normalizeShopifyProductId } from "~/utils";
 import type { RentalConfigRow } from "~/features/appPages/types";
+import { container } from "~/shared/container";
+import { TrackProductInput } from "~/domains/rental/application/useCases/dto/TrackProductDto";
+import { UpdateRentalBasicsInput } from "~/domains/rental/application/useCases/dto/UpdateRentalBasicsDto";
+import { DeleteRentalItemInput } from "~/domains/rental/application/useCases/dto/DeleteRentalItemDto";
 
-export type HomeLoaderData = { 
+export type HomeLoaderData = {
   rows: RentalConfigRow[];
   privacyAccepted: boolean;
 };
-
-function isMetafieldPermissionError(message: string): boolean {
-  const m = message.toLowerCase();
-  return m.includes("access denied for metafieldsset") || m.includes("metafieldsset field");
-}
-
-async function syncPricingMetafieldBestEffort(opts: Parameters<typeof syncRentalPricingMetafieldForProduct>[0]) {
-  try {
-    await syncRentalPricingMetafieldForProduct(opts);
-    return { ok: true as const };
-  } catch (e) {
-    const msg = toErrorMessage(e);
-    if (isMetafieldPermissionError(msg)) {
-      return {
-        ok: false as const,
-        warning:
-          "Saved, but couldn’t sync product pricing metafield (missing Shopify scope `write_products`). Reinstall/reauthorize the app after updating scopes.",
-      };
-    }
-    return { ok: false as const, warning: `Saved, but couldn’t sync product pricing metafield: ${msg}` };
-  }
-}
 
 type ShopifyProductInfo = {
   title: string | null;
@@ -72,14 +53,19 @@ async function fetchShopifyProductInfo(admin: any, shopifyProductId: string): Pr
   };
 }
 
+/**
+ * Loader: Fetch all rental items for this shop and enrich with Shopify data.
+ * 
+ * This is a display-only endpoint - uses Prisma directly since there's no
+ * business logic or state changes.
+ */
 export const loader = async ({ request }: LoaderFunctionArgs): Promise<HomeLoaderData> => {
   const { session, admin } = await authenticate.admin(request);
 
-
   const rentalItems = await prisma.rentalItem.findMany({
     where: { shop: session.shop },
-    include: { rateTiers: { orderBy: { minDays: 'asc' } } },
-    orderBy: { createdAt: 'desc' },
+    include: { rateTiers: { orderBy: { minDays: "asc" } } },
+    orderBy: { createdAt: "desc" },
   });
 
   const rows: RentalConfigRow[] = [];
@@ -97,7 +83,7 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<HomeLoade
       productImageUrl: info?.imageUrl ?? item.imageUrl ?? null,
       defaultVariantPrice: info?.defaultVariantPrice ?? null,
       shopInventoryOnHand: info?.shopInventoryOnHand ?? null,
-      currencyCode: info?.currencyCode ?? item.currencyCode ?? 'USD',
+      currencyCode: info?.currencyCode ?? item.currencyCode ?? "USD",
       rentalItem: {
         id: item.id,
         basePricePerDayCents: item.basePricePerDayCents,
@@ -120,13 +106,17 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<HomeLoade
     });
     privacyAccepted = !!shopSettings?.privacyAcceptedAt;
   } catch (e) {
-    // Table doesn't exist yet - migration pending
-    console.warn('[home] ShopSettings table not found, skipping privacy check');
+    console.warn("[home] ShopSettings table not found, skipping privacy check");
   }
 
   return { rows, privacyAccepted };
 };
 
+/**
+ * Action: Handle admin operations (track product, update pricing, remove product, etc.)
+ * 
+ * Refactored to use domain use cases instead of inline business logic.
+ */
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const formData = await request.formData();
@@ -134,6 +124,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   console.log(`[home.server] Action called with intent: ${intent}`);
 
+  // ===== Privacy Acceptance =====
+  // NOTE: This doesn't have a use case yet - simple data update
   if (intent === "accept_privacy") {
     console.log(`[home.server] Processing privacy acceptance for shop: ${session.shop}`);
     try {
@@ -157,163 +149,66 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // ===== Track Product (Quick Enable) =====
   if (intent === "track_product") {
     const rawProductId = String(formData.get("productId") ?? "");
     const productId = normalizeShopifyProductId(rawProductId);
     if (!productId) return { ok: false, error: "Enter a valid Shopify product ID." };
 
-    // Validate product exists and get defaults
-    const res = await admin.graphql(
-      `#graphql
-        query ValidateProductForEnable($id: ID!) {
-          product(id: $id) {
-            id
-            title
-            featuredImage { url }
-            variants(first: 50) { edges { node { id price inventoryQuantity } } }
-          }
-          shop { currencyCode }
-        }`,
-      { variables: { id: `gid://shopify/Product/${productId}` } },
-    );
-    const json = await res.json();
-    const product = json?.data?.product;
-    if (!product?.id) return { ok: false, error: "Product not found (or missing access)." };
+    const useCase = container.getTrackProductUseCase(admin);
+    const input = new TrackProductInput(session.shop, productId);
+    const result = await useCase.execute(input);
 
-    // Auto-enable rentals with defaults from Shopify
-    const currencyCode = String(json?.data?.shop?.currencyCode ?? "USD");
-    const variants: Array<{ node: { price: string; inventoryQuantity: number | null } }> =
-      product?.variants?.edges ?? [];
-    const firstPrice = variants[0]?.node?.price ?? "0";
-    const basePricePerDayCents = Math.round(Number(firstPrice) * 100);
-    const totalQty = variants.reduce((sum, e) => sum + (e.node.inventoryQuantity ?? 0), 0);
-    const quantity = Number.isFinite(totalQty) ? Math.max(0, totalQty) : 0;
+    if (result.isFailure) {
+      return { ok: false, error: result.error };
+    }
 
-    const saved = await prisma.rentalItem.upsert({
-      where: { shop_shopifyProductId: { shop: session.shop, shopifyProductId: productId } },
-      create: {
-        shop: session.shop,
-        shopifyProductId: productId,
-        name: product.title ?? null,
-        imageUrl: product.featuredImage?.url ?? null,
-        currencyCode,
-        basePricePerDayCents: Number.isFinite(basePricePerDayCents) ? Math.max(0, basePricePerDayCents) : 0,
-        quantity,
-      },
-      update: {
-        name: product.title ?? null,
-        imageUrl: product.featuredImage?.url ?? null,
-        currencyCode,
-      },
-    });
-
-    // Sync pricing metafield
-    const syncResult = await syncPricingMetafieldBestEffort({
-      admin,
-      shopifyProductId: productId,
-      basePricePerDayCents: saved.basePricePerDayCents,
-      tiers: [],
-    });
-
-    invalidateRentalCache(session.shop, productId);
-    return { ok: true, action: "tracked", ...(syncResult.ok ? {} : { warning: syncResult.warning }) };
+    return {
+      ok: true,
+      action: "tracked",
+      ...(result.value.warning ? { warning: result.value.warning } : {}),
+    };
   }
 
+  // ===== Enable Rentals (Full Product Setup) =====
+  if (intent === "enable_rentals") {
+    const rawProductId = String(formData.get("productId") ?? "");
+    const productId = normalizeShopifyProductId(rawProductId);
+    if (!productId) return { ok: false, error: "Missing productId." };
+
+    const useCase = container.getTrackProductUseCase(admin);
+    const input = new TrackProductInput(session.shop, productId);
+    const result = await useCase.execute(input);
+
+    if (result.isFailure) {
+      return { ok: false, error: result.error };
+    }
+
+    return {
+      ok: true,
+      action: "enabled",
+      ...(result.value.warning ? { warning: result.value.warning } : {}),
+    };
+  }
+
+  // ===== Remove Product =====
   if (intent === "remove_product") {
-    const productId = String(formData.get("productId") ?? "");
-    const normalized = normalizeShopifyProductId(productId);
-    if (!normalized) return { ok: false, error: "Missing productId." };
+    const rawProductId = String(formData.get("productId") ?? "");
+    const productId = normalizeShopifyProductId(rawProductId);
+    if (!productId) return { ok: false, error: "Missing productId." };
 
-    // Delete rental item (bookings and rate tiers cascade)
-    await prisma.rentalItem.deleteMany({
-      where: { shop: session.shop, shopifyProductId: normalized },
-    });
+    const useCase = container.getDeleteRentalItemUseCase();
+    const input = new DeleteRentalItemInput(session.shop, productId);
+    const result = await useCase.execute(input);
 
-    invalidateRentalCache(session.shop, normalized);
+    if (result.isFailure) {
+      return { ok: false, error: result.error };
+    }
+
     return { ok: true, action: "removed" };
   }
 
-  if (intent === "untrack_product") {
-    const refId = String(formData.get("refId") ?? "");
-    if (!refId) return { ok: false, error: "Missing refId." };
-    await prisma.productReference.deleteMany({ where: { id: refId, shop: session.shop } });
-    return { ok: true, action: "untracked" };
-  }
-
-  if (intent === "track_existing_rental") {
-    const productId = String(formData.get("productId") ?? "");
-    const normalized = normalizeShopifyProductId(productId);
-    if (!normalized) return { ok: false, error: "Missing productId." };
-    await prisma.productReference.upsert({
-      where: { shop_shopifyProductId: { shop: session.shop, shopifyProductId: normalized } },
-      create: { shop: session.shop, shopifyProductId: normalized },
-      update: {},
-    });
-    return { ok: true, action: "tracked" };
-  }
-
-  if (intent === "enable_rentals") {
-    const productId = String(formData.get("productId") ?? "");
-    const normalized = normalizeShopifyProductId(productId);
-    if (!normalized) return { ok: false, error: "Missing productId." };
-
-    // Validate + pull defaults (base price/day + inventory).
-    const res = await admin.graphql(
-      `#graphql
-        query ValidateProductForEnable($id: ID!) {
-          product(id: $id) {
-            id
-            title
-            featuredImage { url }
-            variants(first: 50) { edges { node { id price inventoryQuantity } } }
-          }
-          shop { currencyCode }
-        }`,
-      { variables: { id: `gid://shopify/Product/${normalized}` } },
-    );
-    const json = await res.json();
-    const product = json?.data?.product;
-    if (!product?.id) return { ok: false, error: "Product not found (or missing access)." };
-
-    const currencyCode = String(json?.data?.shop?.currencyCode ?? "USD");
-    const variants: Array<{ node: { price: string; inventoryQuantity: number | null } }> =
-      product?.variants?.edges ?? [];
-    const firstPrice = variants[0]?.node?.price ?? "0";
-    const basePricePerDayCents = Math.round(Number(firstPrice) * 100);
-    const totalQty = variants.reduce((sum, e) => sum + (e.node.inventoryQuantity ?? 0), 0);
-    const quantity = Number.isFinite(totalQty) ? Math.max(0, totalQty) : 0;
-
-    const saved = await prisma.rentalItem.upsert({
-      where: { shop_shopifyProductId: { shop: session.shop, shopifyProductId: normalized } },
-      create: {
-        shop: session.shop,
-        shopifyProductId: normalized,
-        name: product.title ?? null,
-        imageUrl: product.featuredImage?.url ?? null,
-        currencyCode,
-        basePricePerDayCents: Number.isFinite(basePricePerDayCents) ? Math.max(0, basePricePerDayCents) : 0,
-        quantity,
-      },
-      update: {
-        name: product.title ?? null,
-        imageUrl: product.featuredImage?.url ?? null,
-        currencyCode,
-        ...(Number.isFinite(basePricePerDayCents) ? { basePricePerDayCents: Math.max(0, basePricePerDayCents) } : {}),
-        ...(Number.isFinite(quantity) ? { quantity } : {}),
-      },
-    });
-
-    const syncResult = await syncPricingMetafieldBestEffort({
-      admin,
-      shopifyProductId: normalized,
-      basePricePerDayCents: saved.basePricePerDayCents,
-      tiers: [],
-    });
-
-    invalidateRentalCache(session.shop, normalized);
-    return { ok: true, action: "enabled", ...(syncResult.ok ? {} : { warning: syncResult.warning }) };
-  }
-
+  // ===== Update Base Price & Quantity =====
   if (intent === "update_base") {
     const rentalItemId = String(formData.get("rentalItemId") ?? "");
     const basePricePerDay = String(formData.get("basePricePerDay") ?? "");
@@ -321,156 +216,48 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const cents = Math.round(Number(basePricePerDay) * 100);
     const qty = Math.floor(Number(quantity));
+
     if (!rentalItemId) return { ok: false, error: "Missing rentalItemId." };
     if (!Number.isFinite(cents) || cents < 0) return { ok: false, error: "Invalid base price." };
     if (!Number.isFinite(qty) || qty < 0) return { ok: false, error: "Invalid quantity." };
 
-    await prisma.rentalItem.updateMany({
-      where: { id: rentalItemId, shop: session.shop },
-      data: { basePricePerDayCents: cents, quantity: qty },
-    });
+    const useCase = container.getUpdateRentalBasicsUseCase(admin);
+    const input = new UpdateRentalBasicsInput(session.shop, rentalItemId, cents, qty);
+    const result = await useCase.execute(input);
 
-    const it = await prisma.rentalItem.findFirst({
-      where: { id: rentalItemId, shop: session.shop },
-      include: { rateTiers: { orderBy: { minDays: "asc" } } },
-    });
-    if (it) {
-      invalidateRentalCache(session.shop, it.shopifyProductId);
-      const syncResult = await syncPricingMetafieldBestEffort({
-        admin,
-        shopifyProductId: it.shopifyProductId,
-        basePricePerDayCents: it.basePricePerDayCents,
-        tiers: it.rateTiers.map((t) => ({ minDays: t.minDays, pricePerDayCents: t.pricePerDayCents })),
-      });
-      return { ok: true, action: "updated", ...(syncResult.ok ? {} : { warning: syncResult.warning }) };
+    if (result.isFailure) {
+      return { ok: false, error: result.error };
     }
 
-    return { ok: true, action: "updated" };
+    return {
+      ok: true,
+      action: "updated",
+      ...(result.value.warning ? { warning: result.value.warning } : {}),
+    };
   }
 
-  if (intent === "set_pricing_mode") {
-    const rentalItemId = String(formData.get("rentalItemId") ?? "");
-    const mode = String(formData.get("mode") ?? "");
-    if (!rentalItemId) return { ok: false, error: "Missing rentalItemId." };
-    if (mode !== "flat" && mode !== "tiered") return { ok: false, error: "Invalid mode." };
-
-    const it = await prisma.rentalItem.findFirst({
-      where: { id: rentalItemId, shop: session.shop },
-      include: { rateTiers: { orderBy: { minDays: "asc" } } },
-    });
-    if (!it) return { ok: false, error: "Rental item not found." };
-
-    if (mode === "flat") {
-      await prisma.rentalItem.updateMany({
-        where: { id: it.id, shop: session.shop },
-        data: { pricingAlgorithm: "FLAT" },
-      });
-      // Keep tiers in database - just don't use them in flat mode
-      invalidateRentalCache(session.shop, it.shopifyProductId);
-      const syncResult = await syncPricingMetafieldBestEffort({
-        admin,
-        shopifyProductId: it.shopifyProductId,
-        basePricePerDayCents: it.basePricePerDayCents,
-        tiers: [],
-      });
-      return { ok: true, action: "pricing_flat", ...(syncResult.ok ? {} : { warning: syncResult.warning }) };
-    }
-
-    await prisma.rentalItem.updateMany({
-      where: { id: it.id, shop: session.shop },
-      data: { pricingAlgorithm: "TIERED" },
-    });
-
-    invalidateRentalCache(session.shop, it.shopifyProductId);
-    // Tiered mode can exist even with 0 tiers (meaning "no discounts/overrides yet").
-    const refreshed = await prisma.rentalItem.findFirst({
-      where: { id: it.id, shop: session.shop },
-      include: { rateTiers: { orderBy: { minDays: "asc" } } },
-    });
-
-    const tiers = (refreshed?.rateTiers ?? []).map((t) => ({
-      minDays: t.minDays,
-      pricePerDayCents: t.pricePerDayCents,
-    }));
-
-    const syncResult = await syncPricingMetafieldBestEffort({
-      admin,
-      shopifyProductId: it.shopifyProductId,
-      basePricePerDayCents: it.basePricePerDayCents,
-      tiers,
-    });
-
-    return { ok: true, action: "pricing_tiered", ...(syncResult.ok ? {} : { warning: syncResult.warning }) };
+  // ===== Legacy: Untrack Product (ProductReference table) =====
+  // NOTE: This is an old feature - keeping direct DB access for now
+  if (intent === "untrack_product") {
+    const refId = String(formData.get("refId") ?? "");
+    if (!refId) return { ok: false, error: "Missing refId." };
+    await prisma.productReference.deleteMany({ where: { id: refId, shop: session.shop } });
+    return { ok: true, action: "untracked" };
   }
 
-  if (intent === "add_tier") {
-    const rentalItemId = String(formData.get("rentalItemId") ?? "");
-    const minDays = Math.floor(Number(formData.get("minDays") ?? ""));
-    const pricePerDay = String(formData.get("pricePerDay") ?? "");
-    const cents = Math.round(Number(pricePerDay) * 100);
-
-    if (!rentalItemId) return { ok: false, error: "Missing rentalItemId." };
-    if (!Number.isFinite(minDays) || minDays < 1) return { ok: false, error: "Invalid min days." };
-    if (!Number.isFinite(cents) || cents < 0) return { ok: false, error: "Invalid price/day." };
-
-    await prisma.rentalItem.updateMany({
-      where: { id: rentalItemId, shop: session.shop },
-      data: { pricingAlgorithm: "TIERED" },
+  // ===== Legacy: Track Existing Rental (ProductReference table) =====
+  // NOTE: This is an old feature - keeping direct DB access for now
+  if (intent === "track_existing_rental") {
+    const rawProductId = String(formData.get("productId") ?? "");
+    const productId = normalizeShopifyProductId(rawProductId);
+    if (!productId) return { ok: false, error: "Missing productId." };
+    await prisma.productReference.upsert({
+      where: { shop_shopifyProductId: { shop: session.shop, shopifyProductId: productId } },
+      create: { shop: session.shop, shopifyProductId: productId },
+      update: {},
     });
-
-    await prisma.rateTier.upsert({
-      where: { rentalItemId_minDays: { rentalItemId, minDays } },
-      create: { rentalItemId, minDays, pricePerDayCents: cents },
-      update: { pricePerDayCents: cents },
-    });
-
-    const it = await prisma.rentalItem.findFirst({
-      where: { id: rentalItemId, shop: session.shop },
-      include: { rateTiers: { orderBy: { minDays: "asc" } } },
-    });
-    if (it) {
-      invalidateRentalCache(session.shop, it.shopifyProductId);
-      const syncResult = await syncPricingMetafieldBestEffort({
-        admin,
-        shopifyProductId: it.shopifyProductId,
-        basePricePerDayCents: it.basePricePerDayCents,
-        tiers: it.rateTiers.map((t) => ({ minDays: t.minDays, pricePerDayCents: t.pricePerDayCents })),
-      });
-      return { ok: true, action: "tier_saved", ...(syncResult.ok ? {} : { warning: syncResult.warning }) };
-    }
-
-    return { ok: true, action: "tier_saved" };
+    return { ok: true, action: "tracked" };
   }
 
-  if (intent === "remove_tier") {
-    const tierId = String(formData.get("tierId") ?? "");
-    if (!tierId) return { ok: false, error: "Missing tierId." };
-    const tier = await prisma.rateTier.findFirst({
-      where: { id: tierId, rentalItem: { shop: session.shop } },
-      include: { rentalItem: true },
-    });
-    await prisma.rateTier.deleteMany({ where: { id: tierId } });
-
-    if (tier?.rentalItem) {
-      const productId = tier.rentalItem.shopifyProductId;
-      invalidateRentalCache(session.shop, productId);
-      const it = await prisma.rentalItem.findFirst({
-        where: { id: tier.rentalItemId, shop: session.shop },
-        include: { rateTiers: { orderBy: { minDays: "asc" } } },
-      });
-      if (it) {
-        const syncResult = await syncPricingMetafieldBestEffort({
-          admin,
-          shopifyProductId: it.shopifyProductId,
-          basePricePerDayCents: it.basePricePerDayCents,
-          tiers: it.rateTiers.map((t) => ({ minDays: t.minDays, pricePerDayCents: t.pricePerDayCents })),
-        });
-        return { ok: true, action: "tier_removed", ...(syncResult.ok ? {} : { warning: syncResult.warning }) };
-      }
-    }
-    return { ok: true, action: "tier_removed" };
-  }
-
-  return { ok: false, error: "Unknown action." };
+  return { ok: false, error: "Unknown intent" };
 };
-

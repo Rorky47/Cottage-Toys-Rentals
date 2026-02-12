@@ -1,3 +1,17 @@
+/**
+ * @deprecated DEPRECATED - This route is superseded by reserve.new.ts
+ * 
+ * **Replacement**: `~/domains/booking/presentation/routes/reserve.new.ts`
+ * 
+ * **Why deprecated**: 
+ * - Uses old domain functions (isAvailable, calculatePrice)
+ * - Direct Prisma access instead of repositories
+ * 
+ * **Timeline**: Week 4 - swap to reserve.new.ts
+ * 
+ * **Status**: MARKED FOR REMOVAL
+ */
+
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import prisma from "~/db.server";

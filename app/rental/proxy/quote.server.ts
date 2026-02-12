@@ -1,18 +1,18 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import prisma from "~/db.server";
 import { authenticate } from "~/shopify";
-import {
-  getCachedRentalItem,
-  isAvailable,
-  quoteRentalPricing,
-  setCachedRentalItem,
-} from "~/rental";
 import { logger } from "~/utils/logger";
+import { container } from "~/shared/container";
+import { DateRange } from "~/shared/kernel/DateRange";
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Refactored /quote endpoint using use cases.
+ * Provides rental price quotes and availability for storefront.
+ */
 export const quoteLoader = async ({ request }: LoaderFunctionArgs) => {
+  // 1. Authentication
   let session: any = null;
   try {
     ({ session } = await authenticate.public.appProxy(request));
@@ -25,6 +25,7 @@ export const quoteLoader = async ({ request }: LoaderFunctionArgs) => {
   const shop = session.shop;
   const url = new URL(request.url);
 
+  // 2. Extract and validate parameters
   const productId = url.searchParams.get("product_id") ?? "";
   const startDate = url.searchParams.get("start_date") ?? "";
   const endDate = url.searchParams.get("end_date") ?? "";
@@ -49,58 +50,67 @@ export const quoteLoader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   try {
-    let rentalItem = getCachedRentalItem(shop, productId);
-    if (!rentalItem) {
-      const fromDb = await prisma.rentalItem.findUnique({
-        where: { shop_shopifyProductId: { shop, shopifyProductId: productId } },
-        include: { rateTiers: { orderBy: { minDays: "asc" } } },
-      });
-      if (!fromDb) {
-        return json({ ok: false, error: "Rental item not configured" }, { status: 404 });
-      }
-      rentalItem = {
-        id: fromDb.id,
-        shop: fromDb.shop,
-        shopifyProductId: fromDb.shopifyProductId,
-        name: fromDb.name,
-        basePricePerDayCents: fromDb.basePricePerDayCents,
-        quantity: fromDb.quantity,
-        rateTiers: fromDb.rateTiers.map((t) => ({
-          minDays: t.minDays,
-          pricePerDayCents: t.pricePerDayCents,
-        })),
-      };
-      setCachedRentalItem(shop, productId, rentalItem);
-    }
-
-    const quote = quoteRentalPricing({
-      startDate: startDate as any,
-      endDate: endDate as any,
-      units,
-      basePricePerDayCents: rentalItem.basePricePerDayCents,
-      tiers: rentalItem.rateTiers,
-    });
-
     const startDateObj = new Date(`${startDate}T00:00:00.000Z`);
     const endDateObj = new Date(`${endDate}T00:00:00.000Z`);
-    const available = await isAvailable(
-      rentalItem.id,
-      startDateObj,
-      endDateObj,
-      units
-    );
 
-    return json({ ok: true, ...quote, available });
-  } catch (e: any) {
-    if (e?.code === "P2025") {
+    // 3. Look up rental item by Shopify product ID
+    const rentalItemRepo = container.getRentalItemRepository();
+    const rentalItem = await rentalItemRepo.findByShopifyProduct(shop, productId);
+    
+    if (!rentalItem) {
       return json({ ok: false, error: "Rental item not configured" }, { status: 404 });
     }
-    logger.error("Quote failed", e, {
-      productId,
-      startDate,
-      endDate,
-      shop,
+
+    // 4. Calculate duration from date range
+    const dateRangeResult = DateRange.create(startDateObj, endDateObj);
+    if (dateRangeResult.isFailure) {
+      return json({ ok: false, error: dateRangeResult.error }, { status: 400 });
+    }
+    const dateRange = dateRangeResult.value;
+
+    // 5. Calculate pricing using use case
+    const pricingUseCase = container.getPricingUseCase();
+    const pricingResult = await pricingUseCase.execute({
+      rentalItemId: rentalItem.id,
+      durationDays: dateRange.durationDays,
     });
+
+    if (pricingResult.isFailure) {
+      return json({ ok: false, error: pricingResult.error }, { status: 400 });
+    }
+
+    // 6. Check availability using use case
+    const availabilityUseCase = container.getCheckAvailabilityUseCase();
+    const availabilityResult = await availabilityUseCase.execute({
+      rentalItemId: rentalItem.id,
+      startDate: startDateObj,
+      endDate: endDateObj,
+      requestedUnits: units,
+    });
+
+    if (availabilityResult.isFailure) {
+      // Still return pricing even if availability check fails
+      logger.warn("Availability check failed for quote", { 
+        shop, 
+        productId, 
+        error: availabilityResult.error 
+      });
+      return json({
+        ok: true,
+        ...pricingResult.value,
+        available: false, // Default to unavailable on error
+      });
+    }
+
+    // 7. Return combined quote
+    return json({
+      ok: true,
+      ...pricingResult.value,
+      available: availabilityResult.value.available,
+    });
+
+  } catch (e: any) {
+    logger.error("Quote failed", e, { productId, startDate, endDate, shop });
     return json(
       { ok: false, error: "Failed to generate quote" },
       { status: 500 }

@@ -1,5 +1,23 @@
+/**
+ * @deprecated This file will be migrated to an adapter pattern in Week 8.
+ * 
+ * **Future replacement**: `ShopifyMetafieldAdapter` (to be created)
+ * 
+ * **Migration planned for**: Week 8 (Infrastructure Abstractions)
+ * 
+ * **Why keep for now**: 
+ * - Still functional and needed
+ * - Will be refactored with proper adapter pattern
+ * - Low priority (infrastructure concern)
+ * 
+ * **Status**: KEEP UNTIL WEEK 8
+ */
+
 export type RentalPricingTier = { minDays: number; pricePerDayCents: number };
 
+/**
+ * @deprecated Will be replaced with ShopifyMetafieldAdapter
+ */
 export async function syncRentalPricingMetafieldForProduct(opts: {
   admin: any;
   shopifyProductId: string;
