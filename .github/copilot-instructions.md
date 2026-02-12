@@ -1,264 +1,216 @@
 # Cottage Toys Rentals - Copilot Instructions
 
-## Project Overview
-
-**Cottage Toys Rentals** is an embedded Shopify app for managing rental product inventory and availability. The app tracks rental bookings, calculates dynamic pricing based on rental duration, and integrates with Shopify's checkout flow.
-
-### Tech Stack
-- **Framework**: Remix (React-based full-stack framework)
-- **Architecture**: Clean Architecture with Domain-Driven Design (DDD)
-- **Runtime**: Node.js (>=20.19 <22 || >=22.12)
-- **Database**: PostgreSQL with Prisma ORM
-- **Hosting**: Railway (production)
-- **Shopify Integration**: Shopify App Remix, App Bridge React
-- **UI**: Shopify Polaris components
-- **Testing**: Vitest (with mocks and factories)
-- **Build Tool**: Vite
-- **Type System**: TypeScript (strict mode)
+**Last Updated**: February 12, 2026  
+**Architecture**: Clean Architecture with Domain-Driven Design  
+**Migration Status**: ✅ Complete
 
 ---
 
-## Architecture: Clean Architecture + DDD
+## Quick Reference
 
-The app follows **Clean Architecture** principles with **Domain-Driven Design** patterns for maintainability and testability.
+### Architecture Pattern
+Clean Architecture + DDD implemented across 3 domains:
+- **Booking** - Rental reservations
+- **Rental** - Product configuration  
+- **Pricing** - Price calculations
 
-###Architecture Layers (Dependency Flow)
-
+### Directory Structure
 ```
-Presentation Layer (Routes/UI)
-        ↓
-Application Layer (Use Cases)
-        ↓
-Domain Layer (Entities, Value Objects)
-        ↓
-Infrastructure Layer (Repositories, Adapters)
+app/domains/{booking|rental|pricing}/
+  ├── domain/entities/       # Business logic
+  ├── application/useCases/  # Orchestration  
+  ├── infrastructure/        # Data access
+  └── presentation/          # HTTP handlers
 ```
 
-**Key Principles:**
-- Dependencies point inward (outer layers depend on inner layers)
-- Domain layer has NO dependencies on frameworks or databases
-- Use cases orchestrate business logic
-- Repositories abstract data access
-- DTOs transfer data between layers
+### Key Principles
+1. **DTOs are interfaces** - Never use `new SomeDto(...)`
+2. **Container is factory** - Use `createContainer()` not `container`
+3. **Result pattern** - Check `isSuccess` before accessing `value`
+4. **Thin controllers** - Business logic in entities/use cases
+5. **Repository pattern** - Return domain entities, not Prisma types
 
 ---
 
-## Key Concepts
+## Usage Patterns
 
-### Dependency Injection Container
-
-**Location**: `app/shared/container.ts`
-
-The container manages use case instantiation and repository lifecycle.
-
-**Usage Pattern:**
-
+### Route Handler Template
 ```typescript
-import { createContainer } from "~/shared/container";
-
-// In route handlers or services:
-const container = createContainer();
-const useCase = container.getCheckAvailabilityUseCase();
-const result = await useCase.execute(input);
+export const loader = async ({ request }) => {
+  const { session, admin } = await authenticate.admin(request);
+  
+  const container = createContainer();
+  const useCase = container.getSomeUseCase();
+  const result = await useCase.execute({ /* input */ });
+  
+  if (result.isFailure) {
+    return json({ error: result.error }, { status: 400 });
+  }
+  
+  return json(result.value);
+};
 ```
 
-### Use Case Pattern
-
-All use cases follow the same pattern:
-
+### Use Case Template
 ```typescript
-interface SomeInput {
-  // Input parameters
-}
-
-interface SomeOutput {
-  // Output data
-}
-
 export class SomeUseCase {
-  constructor(private readonly repo: IRepository) {}
-
+  constructor(private repository: IRepository) {}
+  
   async execute(input: SomeInput): Promise<Result<SomeOutput>> {
-    // 1. Validate input
-    // 2. Load entities
-    // 3. Apply business rules
-    // 4. Persist changes
-    // 5. Return Result (success or failure)
+    // 1. Validate
+    if (!input.field) return Result.fail("Required");
     
-    return Result.ok(output);
-    // or
-    return Result.fail("Error message");
+    // 2. Fetch entity
+    const entity = await this.repository.findById(input.id);
+    if (!entity) return Result.fail("Not found");
+    
+    // 3. Business logic (via entity method)
+    const result = entity.doSomething(input.data);
+    if (result.isFailure) return result;
+    
+    // 4. Persist
+    await this.repository.save(entity);
+    
+    // 5. Return
+    return Result.ok({ success: true });
   }
 }
 ```
 
-**Error Handling:**
-- Use `Result<T>` type (Railway-Oriented Programming)
-- Check `result.isSuccess` or `result.isFailure`
-- Access value via `result.value` or error via `result.error`
-
 ---
 
-## Available Use Cases
+## All Use Cases
 
 ### Booking Domain
-- `getCheckAvailabilityUseCase()` - Check if dates are available
-- `getCreateBookingUseCase()` - Create RESERVED booking (storefront)
-- `getCreateConfirmedBookingUseCase()` - Create CONFIRMED booking (webhooks)
-- `getConfirmBookingByIdUseCase()` - Confirm booking by ID
-- `getPromoteBookingByDatesUseCase()` - Promote by date match
-- `getCleanupExpiredBookingsUseCase()` - Remove expired reservations
+- `CheckAvailabilityUseCase` - Verify item available
+- `CreateBookingUseCase` - New RESERVED booking
+- `CreateConfirmedBookingUseCase` - Direct CONFIRMED
+- `ConfirmBookingByIdUseCase` - By exact ID
+- `PromoteBookingByDatesUseCase` - By date match
+- `DeleteReservationUseCase` - Delete RESERVED
+- `GetCalendarBookingsUseCase` - Admin calendar
+- `UpdateBookingStatusUseCase` - Admin updates
+- `CleanupExpiredBookingsUseCase` - Remove expired
 
 ### Rental Domain
-- `getCreateRentalItemUseCase()` - Create new rental item
-- `getUpsertRentalItemUseCase()` - Create or update rental item
-- `getUpdateRentalItemUseCase()` - Update rental configuration
-- `getTrackProductUseCase(adminApi)` - Track Shopify product
-- `getUpdateRentalBasicsUseCase(adminApi)` - Update price/quantity
-- `getDeleteRentalItemUseCase()` - Remove rental configuration
+- `TrackProductUseCase` - Enable rental
+- `UpdateRentalBasicsUseCase` - Price/quantity
+- `GetRentalItemsForDashboardUseCase` - Admin list
+- `UpsertRentalItemUseCase` - Webhook updates
+- `DeleteRentalItemUseCase` - Remove rental
 
 ### Pricing Domain
-- `getCalculatePricingUseCase()` - Calculate rental price
+- `CalculatePricingUseCase` - Calculate price
 
 ---
 
-## Domain Entities
+## Container Methods
 
-### Booking Entity (`app/domains/booking/domain/entities/Booking.ts`)
-
-**Statuses:**
-- `RESERVED` - Temporary hold (45min TTL)
-- `CONFIRMED` - Paid booking
-- `CANCELLED` - Cancelled
-- `RETURNED` - Returned
-
-**Key Methods:**
-- `createReservation()` - Create RESERVED booking
-- `confirm(orderId)` - Promote to CONFIRMED
-- `cancel()`, `markAsReturned()`
-- `updateUnits()`, `updateFulfillmentMethod()`
-
-### RentalItem Entity (`app/domains/rental/domain/entities/RentalItem.ts`)
-
-**Key Methods:**
-- `updateBasics()` - Update name, price, currency
-- `updatePricing()` - Change pricing configuration
-- `updateQuantity()` - Adjust inventory
-
----
-
-## Value Objects (Shared Kernel)
-
-### Result<T>
-Railway-oriented error handling:
 ```typescript
-const result = Result.ok(value);
-const failure = Result.fail("error message");
-
-if (result.isSuccess) {
-  console.log(result.value);
-} else {
-  console.error(result.error);
-}
-```
-
-### Money
-Type-safe currency:
-```typescript
-const price = Money.fromCents(2500, "USD"); // $25.00
-```
-
-### DateRange
-Validates rental periods:
-```typescript
-const range = DateRange.create(startDate, endDate);
-console.log(range.value.durationDays); // Inclusive
-```
-
----
-
-## Code Conventions
-
-### DTOs are Interfaces
-```typescript
-// ❌ Wrong
-const input = new TrackProductInput(shop, productId);
-
-// ✅ Correct
-const input: TrackProductInput = { shop, shopifyProductId: productId };
-```
-
-### Always Use Container
-```typescript
-// ❌ Wrong
-import { someFunction } from "~/rental/old-file";
-
-// ✅ Correct
 const container = createContainer();
-const useCase = container.getSomeUseCase();
-const result = await useCase.execute(input);
+
+// Booking
+container.getCheckAvailabilityUseCase()
+container.getCreateBookingUseCase()
+container.getDeleteReservationUseCase()
+container.getGetCalendarBookingsUseCase()
+container.getUpdateBookingStatusUseCase()
+
+// Rental
+container.getTrackProductUseCase(adminApi)
+container.getUpdateRentalBasicsUseCase(adminApi)
+container.getGetRentalItemsForDashboardUseCase()
+
+// Pricing
+container.getCalculatePricingUseCase()
+
+// Repositories
+container.getBookingRepository()
+container.getRentalItemRepository()
 ```
 
-### Check Result Pattern
+---
+
+## Common Mistakes
+
+### ❌ Wrong: DTO as Class
 ```typescript
-const result = await useCase.execute(input);
+const input = new CreateBookingInput(...);  // CRASH!
+```
 
-if (result.isFailure) {
-  return json({ error: result.error }, { status: 400 });
+### ✅ Correct: DTO as Object Literal
+```typescript
+const input: CreateBookingInput = {
+  field: "value"
+};
+```
+
+### ❌ Wrong: Import Container Object
+```typescript
+import { container } from "~/shared/container";  // Doesn't exist!
+```
+
+### ✅ Correct: Use Factory
+```typescript
+import { createContainer } from "~/shared/container";
+const container = createContainer();
+```
+
+### ❌ Wrong: Access Value Without Check
+```typescript
+const data = result.value;  // Might be undefined!
+```
+
+### ✅ Correct: Check First
+```typescript
+if (result.isSuccess) {
+  const data = result.value;
 }
-
-const data = result.value;
 ```
 
 ---
 
 ## Migration Status
 
-### ✅ Migrated to Use Cases
-- Proxy routes (quote, reserve, unreserve)
-- Admin dashboard
-- ordersPaid webhook
+### ✅ Migrated
+- All booking operations
+- All rental operations  
+- All pricing calculations
+- Storefront API (quote, reserve, unreserve)
+- Admin dashboard & calendar
+- Webhooks (ordersPaid, GDPR, app lifecycle)
 
-### ⚠️ Deprecated Files (Do Not Add Features)
-- `app/rental/*.server.ts` - Old architecture
-- Use new use cases instead
+### ⚠️ Intentional Exceptions (4 Prisma calls)
+- Privacy settings CRUD (simple, no logic)
+- ProductReference legacy feature (will remove)
 
----
-
-## Common Tasks
-
-### Add New Use Case
-
-1. Create use case in `app/domains/{domain}/application/useCases/`
-2. Add to container in `app/shared/container.ts`
-3. Use in route via `createContainer()`
-
-### Migrate Old Route
-
-1. Replace Prisma calls with use case execution
-2. Update imports to use `createContainer()`
-3. Use DTOs as interfaces (not classes)
-4. Return `Result<T>` pattern
+**Total**: 8 Prisma calls eliminated, 4 remain (intentional)
 
 ---
 
-## Troubleshooting
+## Quick Commands
 
-**Build Error: "container is not exported"**
-- Use `createContainer()`, not `container`
-
-**Build Error: "SomeDto is not exported"**
-- DTOs are interfaces - use object literals, not `new SomeDto()`
-
-**Database Error**
-- Run `npm run setup` to regenerate Prisma client
+```bash
+npm run dev    # Start dev server
+npm run build  # Build (verify no errors)
+npm run test   # Run tests (60+ passing)
+```
 
 ---
 
-## Key Principles
+## Key Files
 
-1. **Use containers** - Always `createContainer()` to get use cases
-2. **DTOs are interfaces** - Use object literals
-3. **Result pattern** - Check `isSuccess`/`isFailure`
-4. **Entities > Prisma** - Work with domain entities
-5. **Type-safe values** - Use Money, DateRange value objects
+- `app/shared/container.ts` - DI container
+- `app/shared/kernel/Result.ts` - Error handling
+- `app/domains/*/domain/entities/` - Business logic
+- `app/domains/*/application/useCases/` - Operations
+
+---
+
+## Need More Details?
+
+See session checkpoints in `.copilot/session-state/` for:
+- Complete migration history
+- Architectural decisions
+- Pattern examples
+- Troubleshooting guides
