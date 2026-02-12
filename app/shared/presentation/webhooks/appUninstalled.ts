@@ -3,16 +3,111 @@ import { authenticate } from "~/shopify";
 import db from "~/db.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, session, topic } = await authenticate.webhook(request);
+  const { shop, session, topic, admin } = await authenticate.webhook(request);
 
-  console.log(`Received ${topic} webhook for ${shop}`);
+  console.log(`[appUninstalled] Received ${topic} webhook for ${shop}`);
 
+  // 1. Delete webhook subscriptions from Shopify (App Store requirement)
+  if (admin) {
+    try {
+      const response = await admin.graphql(`
+        query {
+          webhookSubscriptions(first: 100) {
+            edges {
+              node {
+                id
+              }
+            }
+          }
+        }
+      `);
+      const data = await response.json();
+      const webhooks = data.data?.webhookSubscriptions?.edges || [];
+      
+      for (const webhook of webhooks) {
+        await admin.graphql(`
+          mutation {
+            webhookSubscriptionDelete(id: "${webhook.node.id}") {
+              deletedWebhookSubscriptionId
+            }
+          }
+        `);
+      }
+      console.log(`[appUninstalled] Deleted ${webhooks.length} webhook subscriptions`);
+    } catch (error) {
+      console.error(`[appUninstalled] Failed to delete webhooks:`, error);
+    }
+
+    // 2. Delete metafields from products (App Store requirement)
+    try {
+      // Get all rental items to find products with metafields
+      const rentalItems = await db.rentalItem.findMany({
+        where: { shop },
+        select: { shopifyProductId: true },
+      });
+
+      console.log(`[appUninstalled] Found ${rentalItems.length} products with rental metafields`);
+
+      // Delete rental pricing metafield from each product
+      for (const item of rentalItems) {
+        const productGid = `gid://shopify/Product/${item.shopifyProductId}`;
+        try {
+          await admin.graphql(`
+            mutation {
+              metafieldsDelete(metafields: [{
+                ownerId: "${productGid}",
+                namespace: "rental",
+                key: "pricing"
+              }]) {
+                deletedMetafields {
+                  ownerId
+                  namespace
+                  key
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `);
+        } catch (metafieldError) {
+          console.error(`[appUninstalled] Failed to delete metafield for product ${item.shopifyProductId}:`, metafieldError);
+        }
+      }
+      console.log(`[appUninstalled] Deleted metafields from ${rentalItems.length} products`);
+    } catch (error) {
+      console.error(`[appUninstalled] Failed to clean up metafields:`, error);
+    }
+  }
+
+  // 3. Delete all app data from database
   // Webhook requests can trigger multiple times and after an app has already been uninstalled.
   // If this webhook already ran, the session may have been deleted previously.
   if (session) {
-    await db.session.deleteMany({ where: { shop } });
+    try {
+      // Delete sessions
+      await db.session.deleteMany({ where: { shop } });
+      
+      // Delete shop settings
+      await db.shopSettings.deleteMany({ where: { shop } });
+      
+      // Delete rental items (cascades to rate tiers via Prisma schema)
+      await db.rentalItem.deleteMany({ where: { shop } });
+      
+      // Delete bookings
+      await db.booking.deleteMany({ where: { shop } });
+      
+      // Delete product references (legacy)
+      await db.productReference.deleteMany({ where: { shop } });
+      
+      console.log(`[appUninstalled] Cleaned up all app data for ${shop}`);
+    } catch (error) {
+      console.error(`[appUninstalled] Failed to clean up app data:`, error);
+    }
   }
 
+  console.log(`[appUninstalled] Uninstall cleanup complete for ${shop}`);
   return new Response();
 };
 
