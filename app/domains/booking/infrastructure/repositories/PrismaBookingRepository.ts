@@ -113,4 +113,61 @@ export class PrismaBookingRepository implements IBookingRepository {
       where: { id: { in: ids } },
     });
   }
+
+  async findByShopAndDateRange(
+    shop: string,
+    startDate: Date,
+    endDate: Date,
+    now: Date
+  ): Promise<Array<{ booking: Booking; rentalItemName: string | null }>> {
+    const raw = await this.prisma.booking.findMany({
+      where: {
+        rentalItem: { shop },
+        startDate: { lt: endDate },
+        endDate: { gt: startDate },
+        OR: [
+          { status: "CONFIRMED" },
+          { status: "RESERVED", expiresAt: { gt: now } },
+          { status: "RETURNED" },
+        ],
+      },
+      include: { rentalItem: true },
+      orderBy: { startDate: "asc" },
+    });
+
+    return raw
+      .map((record) => {
+        const result = BookingMapper.toDomain(record);
+        if (result.isFailure) return null;
+        return {
+          booking: result.value,
+          rentalItemName: record.rentalItem.name ?? null,
+        };
+      })
+      .filter((item): item is { booking: Booking; rentalItemName: string | null } => item !== null);
+  }
+
+  async updateStatus(
+    shop: string,
+    bookingId: string,
+    status: Booking["status"],
+    fulfillmentMethod: "SHIP" | "PICKUP" | "UNKNOWN"
+  ): Promise<boolean> {
+    const data: { status: string; fulfillmentMethod: string; expiresAt?: null } = {
+      status,
+      fulfillmentMethod,
+    };
+
+    // Clear expiration when confirming or marking as returned
+    if (status === "CONFIRMED" || status === "RETURNED") {
+      data.expiresAt = null;
+    }
+
+    const result = await this.prisma.booking.updateMany({
+      where: { id: bookingId, rentalItem: { shop } },
+      data,
+    });
+
+    return result.count > 0;
+  }
 }

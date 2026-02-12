@@ -1,6 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import prisma from "~/db.server";
 import { authenticate } from "~/shopify";
 import { toDateOnly, isBookingStatus, isFulfillmentMethod, type BookingRow } from "~/features/calendar";
 import { createContainer } from "~/shared/container";
@@ -8,10 +7,13 @@ import { createContainer } from "~/shared/container";
 export type CalendarLoaderData = { year: number; month: number; rows: BookingRow[]; todayDate: string };
 export type CalendarActionData = { ok: true } | { ok: false; error: string };
 
+/**
+ * Calendar loader - migrated to use GetCalendarBookingsUseCase
+ */
 export const loader = async ({ request }: LoaderFunctionArgs): Promise<CalendarLoaderData> => {
   const { session } = await authenticate.admin(request);
 
-  // Clean up expired reservations before showing calendar (new architecture)
+  // Clean up expired reservations before showing calendar
   const container = createContainer();
   const cleanupUseCase = container.getCleanupExpiredBookingsUseCase();
   await cleanupUseCase.execute();
@@ -33,45 +35,42 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<CalendarL
     }
   }
 
-  const monthStart = new Date(Date.UTC(year, month, 1));
-  const monthEnd = new Date(Date.UTC(year, month + 1, 1));
-
-  const bookings = await prisma.booking.findMany({
-    where: {
-      rentalItem: { shop: session.shop },
-      // Any booking that overlaps the visible month.
-      startDate: { lt: monthEnd },
-      endDate: { gt: monthStart },
-      OR: [
-        { status: "CONFIRMED" },
-        { status: "RESERVED", expiresAt: { gt: now } },
-        { status: "RETURNED" },
-      ],
-    },
-    include: { rentalItem: true },
-    orderBy: { startDate: "asc" },
+  // Fetch bookings using use case
+  const getBookingsUseCase = container.getGetCalendarBookingsUseCase();
+  const result = await getBookingsUseCase.execute({
+    shop: session.shop,
+    year,
+    month,
   });
 
-  const rows: BookingRow[] = bookings.map((b) => {
-    const fmUnknown = (b as { fulfillmentMethod?: unknown }).fulfillmentMethod;
+  if (result.isFailure) {
+    throw new Error(result.error);
+  }
+
+  // Map DTOs to BookingRow format (view model)
+  const rows: BookingRow[] = result.value.bookings.map((b) => {
+    const fmUnknown = b.fulfillmentMethod as unknown;
     const fulfillmentMethod: BookingRow["fulfillmentMethod"] =
       typeof fmUnknown === "string" && isFulfillmentMethod(fmUnknown) ? fmUnknown : "UNKNOWN";
 
     return {
       id: b.id,
-      startDate: toDateOnly(b.startDate),
-      endDate: toDateOnly(b.endDate),
+      startDate: b.startDate,
+      endDate: b.endDate,
       units: b.units,
-      rentalItemName: b.rentalItem.name ?? null,
+      rentalItemName: b.rentalItemName,
       status: b.status,
       fulfillmentMethod,
-      orderId: b.orderId ?? null,
+      orderId: b.orderId,
     };
   });
 
   return { year, month, rows, todayDate };
 };
 
+/**
+ * Calendar action - migrated to use UpdateBookingStatusUseCase
+ */
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
@@ -93,22 +92,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json<CalendarActionData>({ ok: false, error: "Invalid fulfillment method." }, { status: 400 });
   }
 
-  const status: BookingRow["status"] = statusRaw;
-  const fulfillmentMethod: BookingRow["fulfillmentMethod"] = fulfillmentMethodRaw;
-
-  const data: { status: BookingRow["status"]; fulfillmentMethod: BookingRow["fulfillmentMethod"]; expiresAt?: null } = {
-    status,
-    fulfillmentMethod,
-  };
-  if (status === "CONFIRMED" || status === "RETURNED") data.expiresAt = null;
-
-  const updated = await prisma.booking.updateMany({
-    where: { id: bookingId, rentalItem: { shop: session.shop } },
-    data,
+  // Use UpdateBookingStatusUseCase
+  const container = createContainer();
+  const updateUseCase = container.getUpdateBookingStatusUseCase();
+  const result = await updateUseCase.execute({
+    shop: session.shop,
+    bookingId,
+    status: statusRaw as "RESERVED" | "CONFIRMED" | "CANCELLED" | "RETURNED",
+    fulfillmentMethod: fulfillmentMethodRaw as "SHIP" | "PICKUP" | "UNKNOWN",
   });
 
-  if (updated.count === 0) {
-    return json<CalendarActionData>({ ok: false, error: "Booking not found." }, { status: 404 });
+  if (result.isFailure) {
+    return json<CalendarActionData>({ ok: false, error: result.error }, { status: 404 });
   }
 
   return json<CalendarActionData>({ ok: true });

@@ -22,6 +22,23 @@ export interface IBookingRepository {
   findByOrderId(orderId: string): Promise<Booking[]>;
   
   findExpired(now: Date): Promise<Booking[]>;
+
+  findByShopAndDateRange(
+    shop: string,
+    startDate: Date,
+    endDate: Date,
+    now: Date
+  ): Promise<Array<{
+    booking: Booking;
+    rentalItemName: string | null;
+  }>>;
+
+  updateStatus(
+    shop: string,
+    bookingId: string,
+    status: Booking["status"],
+    fulfillmentMethod: "SHIP" | "PICKUP" | "UNKNOWN"
+  ): Promise<boolean>;
   
   save(booking: Booking): Promise<void>;
   

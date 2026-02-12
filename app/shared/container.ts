@@ -19,6 +19,8 @@ import { ConfirmBookingByIdUseCase } from "~/domains/booking/application/useCase
 import { PromoteBookingByDatesUseCase } from "~/domains/booking/application/useCases/PromoteBookingByDatesUseCase";
 import { CleanupExpiredBookingsUseCase } from "~/domains/booking/application/useCases/CleanupExpiredBookingsUseCase";
 import { DeleteReservationUseCase } from "~/domains/booking/application/useCases/DeleteReservationUseCase";
+import { GetCalendarBookingsUseCase } from "~/domains/booking/application/useCases/GetCalendarBookingsUseCase";
+import { UpdateBookingStatusUseCase } from "~/domains/booking/application/useCases/UpdateBookingStatusUseCase";
 import { CalculatePricingUseCase } from "~/domains/pricing/application/useCases/CalculatePricingUseCase";
 import { CreateRentalItemUseCase } from "~/domains/rental/application/useCases/CreateRentalItemUseCase";
 import { UpdateRentalItemUseCase } from "~/domains/rental/application/useCases/UpdateRentalItemUseCase";
@@ -37,6 +39,8 @@ export interface IContainer {
   getPromoteBookingByDatesUseCase(): PromoteBookingByDatesUseCase;
   getCleanupExpiredBookingsUseCase(): CleanupExpiredBookingsUseCase;
   getDeleteReservationUseCase(): DeleteReservationUseCase;
+  getGetCalendarBookingsUseCase(): GetCalendarBookingsUseCase;
+  getUpdateBookingStatusUseCase(): UpdateBookingStatusUseCase;
   
   // Pricing domain
   getCalculatePricingUseCase(): CalculatePricingUseCase;
@@ -109,6 +113,14 @@ export function createContainer(db: PrismaClient = prisma): IContainer {
 
     getDeleteReservationUseCase() {
       return new DeleteReservationUseCase(getBookingRepo());
+    },
+
+    getGetCalendarBookingsUseCase() {
+      return new GetCalendarBookingsUseCase(getBookingRepo());
+    },
+
+    getUpdateBookingStatusUseCase() {
+      return new UpdateBookingStatusUseCase(getBookingRepo());
     },
 
     // Pricing domain
