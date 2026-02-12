@@ -30,3 +30,30 @@ pnpm-lock.yaml
 /app/types/admin.generated.d.ts
 /app/types/admin-2025-07.schema.json
 app/types/admin.types.d.ts
+
+# Test coverage
+coverage/
+*.lcov
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Railway local data
+.railway/
+
+# Session/debug files
+.copilot/
