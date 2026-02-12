@@ -7,38 +7,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   console.log(`[appUninstalled] Received ${topic} webhook for ${shop}`);
 
-  // 1. Delete webhook subscriptions from Shopify (App Store requirement)
+  // 1. Delete metafields from products (App Store requirement)
   if (admin) {
-    try {
-      const response = await admin.graphql(`
-        query {
-          webhookSubscriptions(first: 100) {
-            edges {
-              node {
-                id
-              }
-            }
-          }
-        }
-      `);
-      const data = await response.json();
-      const webhooks = data.data?.webhookSubscriptions?.edges || [];
-      
-      for (const webhook of webhooks) {
-        await admin.graphql(`
-          mutation {
-            webhookSubscriptionDelete(id: "${webhook.node.id}") {
-              deletedWebhookSubscriptionId
-            }
-          }
-        `);
-      }
-      console.log(`[appUninstalled] Deleted ${webhooks.length} webhook subscriptions`);
-    } catch (error) {
-      console.error(`[appUninstalled] Failed to delete webhooks:`, error);
-    }
-
-    // 2. Delete metafields from products (App Store requirement)
     try {
       // Get all rental items to find products with metafields
       const rentalItems = await db.rentalItem.findMany({
@@ -81,7 +51,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  // 3. Delete all app data from database
+  // 2. Delete all app data from database
   // Note: Session might already be invalidated, but we can still clean up by shop domain
   try {
     // Get all rental item IDs for this shop first (needed to delete bookings)
