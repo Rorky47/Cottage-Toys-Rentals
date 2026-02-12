@@ -76,6 +76,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const rentalEnd = getProperty(props, "Rental Return Date") || getProperty(props, "rental_end");
       const bookingRef = getProperty(props, "_booking_ref") ?? null;
 
+      console.log(`[ordersPaid] Line item properties:`, JSON.stringify(props));
+      console.log(`[ordersPaid] Extracted: start=${rentalStart}, end=${rentalEnd}, bookingRef=${bookingRef}`);
+
       if (!rentalStart || !rentalEnd) continue; // not a rental line
 
       const productId = li?.product_id;
@@ -134,6 +137,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Promote existing RESERVED booking by its unique booking reference
     if (entry.bookingRef) {
+      console.log(`[ordersPaid] Attempting to promote booking ${entry.bookingRef} for rentalItem ${rentalItem.id}`);
       const updated = await prisma.booking.updateMany({
         where: {
           id: entry.bookingRef,
@@ -148,7 +152,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           fulfillmentMethod,
         } as any,
       });
+      console.log(`[ordersPaid] Updated ${updated.count} booking(s) for ref ${entry.bookingRef}`);
       if (updated.count > 0) continue;
+      console.log(`[ordersPaid] Booking ${entry.bookingRef} not found or already confirmed - will create fallback`);
     }
 
     const existing = await prisma.booking.findFirst({
