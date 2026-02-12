@@ -731,6 +731,7 @@
     (function() {
       var appProxyBasePath = '/apps/nds-rentalrates-app';
       var shopDomain = '{{ shop.permanent_domain }}';
+      var API_UNRESERVE = '/unreserve';
       
       function appProxyUrl(pathAndQuery) {
         if (shopDomain) return 'https://' + shopDomain + appProxyBasePath + pathAndQuery;
@@ -744,15 +745,73 @@
         var promise = originalFetch.apply(this, arguments);
         
         // Detect cart change/update API calls
-        if (isFetchCall && typeof url === 'string' && url.includes('/cart/change.js')) {
+        if (isFetchCall && typeof url === 'string' && 
+            (url.includes('/cart/change.js') || url.includes('/cart/update.js'))) {
+          
+          // Try to extract booking_ref from request body if quantity is being set to 0
+          if (options && options.body) {
+            try {
+              var requestData = JSON.parse(options.body);
+              // /cart/change.js with quantity 0 means removal
+              if (requestData.quantity === 0 && requestData.line) {
+                // Need to get current cart to find the booking_ref
+                fetch('/cart.js')
+                  .then(function(res) { return res.json(); })
+                  .then(function(cart) {
+                    if (cart.items && cart.items[requestData.line - 1]) {
+                      var item = cart.items[requestData.line - 1];
+                      if (item.properties && item.properties._booking_ref) {
+                        var bookingRef = String(item.properties._booking_ref);
+                        fetch(appProxyUrl(API_UNRESERVE), {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'same-origin',
+                          body: JSON.stringify({ booking_ref: bookingRef })
+                        }).catch(function(e) {
+                          console.warn('Failed to unreserve booking:', e);
+                        });
+                      }
+                    }
+                  })
+                  .catch(function() {});
+              }
+              // /cart/update.js with updates object containing line: 0
+              if (requestData.updates) {
+                fetch('/cart.js')
+                  .then(function(res) { return res.json(); })
+                  .then(function(cart) {
+                    Object.keys(requestData.updates).forEach(function(lineKey) {
+                      var qty = requestData.updates[lineKey];
+                      if (qty === 0) {
+                        var lineIndex = parseInt(lineKey, 10) - 1;
+                        if (cart.items && cart.items[lineIndex]) {
+                          var item = cart.items[lineIndex];
+                          if (item.properties && item.properties._booking_ref) {
+                            var bookingRef = String(item.properties._booking_ref);
+                            fetch(appProxyUrl(API_UNRESERVE), {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              credentials: 'same-origin',
+                              body: JSON.stringify({ booking_ref: bookingRef })
+                            }).catch(function(e) {
+                              console.warn('Failed to unreserve booking:', e);
+                            });
+                          }
+                        }
+                      }
+                    });
+                  })
+                  .catch(function() {});
+              }
+            } catch (e) {}
+          }
+          
+          // Also check response for confirmation
           promise.then(function(response) {
-            // Clone response to read body without consuming it
             response.clone().json().then(function(data) {
               // If quantity is 0, item was removed
               if (data && data.quantity === 0 && data.properties && data.properties._booking_ref) {
                 var bookingRef = String(data.properties._booking_ref);
-                
-                // Call unreserve endpoint
                 fetch(appProxyUrl(API_UNRESERVE), {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -762,12 +821,8 @@
                   console.warn('Failed to unreserve booking:', e);
                 });
               }
-            }).catch(function() {
-              // Ignore JSON parse errors
-            });
-          }).catch(function() {
-            // Ignore fetch errors
-          });
+            }).catch(function() {});
+          }).catch(function() {});
         }
         
         return promise;
