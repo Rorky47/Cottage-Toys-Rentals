@@ -138,6 +138,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Promote existing RESERVED booking by its unique booking reference
     if (entry.bookingRef) {
       console.log(`[ordersPaid] Attempting to promote booking ${entry.bookingRef} for rentalItem ${rentalItem.id}`);
+      
+      // First check if the booking exists
+      const existingBooking = await prisma.booking.findUnique({
+        where: { id: entry.bookingRef },
+      });
+      console.log(`[ordersPaid] Found existing booking:`, existingBooking ? `ID=${existingBooking.id}, status=${existingBooking.status}, rentalItemId=${existingBooking.rentalItemId}` : 'NOT FOUND');
+      
       const updated = await prisma.booking.updateMany({
         where: {
           id: entry.bookingRef,
@@ -155,6 +162,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       console.log(`[ordersPaid] Updated ${updated.count} booking(s) for ref ${entry.bookingRef}`);
       if (updated.count > 0) continue;
       console.log(`[ordersPaid] Booking ${entry.bookingRef} not found or already confirmed - will create fallback`);
+    } else {
+      console.log(`[ordersPaid] No bookingRef provided for product ${entry.productId}`);
     }
 
     const existing = await prisma.booking.findFirst({

@@ -133,10 +133,16 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<HomeLoade
   }
 
   // Check if merchant has accepted privacy policy
-  const shopSettings = await prisma.shopSettings.findUnique({
-    where: { shop: session.shop },
-  });
-  const privacyAccepted = !!shopSettings?.privacyAcceptedAt;
+  let privacyAccepted = false;
+  try {
+    const shopSettings = await prisma.shopSettings.findUnique({
+      where: { shop: session.shop },
+    });
+    privacyAccepted = !!shopSettings?.privacyAcceptedAt;
+  } catch (e) {
+    // Table doesn't exist yet - migration pending
+    console.warn('[home] ShopSettings table not found, skipping privacy check');
+  }
 
   return { rows, privacyAccepted };
 };

@@ -553,7 +553,7 @@
                 // Update line item with secure booking reference
                 if (addedKey && bookingRef) {
                   try {
-                    await fetch('/cart/change.js', {
+                    var updateResp = await fetch('/cart/change.js', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       credentials: 'same-origin',
@@ -563,7 +563,12 @@
                         properties: createRentalProperties(start, end, days, bookingRef)
                       })
                     });
-                  } catch (e) {}
+                    if (!updateResp.ok) {
+                      console.error('Failed to update cart item with booking reference:', updateResp.status);
+                    }
+                  } catch (e) {
+                    console.error('Error updating cart item with booking reference:', e);
+                  }
                 }
               } catch (e) {
                 // Remove cart item if reservation failed
