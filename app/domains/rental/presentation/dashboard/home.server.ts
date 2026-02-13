@@ -333,6 +333,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return { ok: false, error: "Rental item not found." };
     }
 
+    // Check for duplicate minDays
+    const existingMinDays = (rentalItem.rateTiers || []).map(t => t.minDays);
+    if (existingMinDays.includes(minDaysNum)) {
+      return { ok: false, error: `A tier for ${minDaysNum} days already exists. Please use a different number of days.` };
+    }
+
     // Add new tier
     const existingTiers = rentalItem.rateTiers.map(t => ({
       minDays: t.minDays,
