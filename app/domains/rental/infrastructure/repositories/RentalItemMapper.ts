@@ -14,7 +14,10 @@ export class RentalItemMapper {
    * Convert Prisma rental item to domain entity.
    */
   static toDomain(raw: PrismaRentalItemWithTiers): Result<RentalItem> {
-    const basePriceMoney = Money.fromCents(raw.basePricePerDayCents, raw.currencyCode);
+    const basePriceResult = Money.fromCents(raw.basePricePerDayCents, raw.currencyCode);
+    if (basePriceResult.isFailure) {
+      return Result.fail(basePriceResult.error);
+    }
     
     return RentalItem.create({
       id: raw.id,
@@ -23,7 +26,7 @@ export class RentalItemMapper {
       name: raw.name,
       imageUrl: raw.imageUrl,
       currencyCode: raw.currencyCode,
-      basePricePerDay: basePriceMoney,
+      basePricePerDay: basePriceResult.value,
       pricingAlgorithm: raw.pricingAlgorithm as PricingAlgorithm,
       quantity: raw.quantity,
       rateTiers: raw.rateTiers.map((tier) => ({
