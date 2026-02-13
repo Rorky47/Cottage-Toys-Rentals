@@ -452,5 +452,89 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     };
   }
 
+  // ===== Update Tier =====
+  if (intent === "update_tier") {
+    const rentalItemId = String(formData.get("rentalItemId") ?? "");
+    const oldTierId = String(formData.get("oldTierId") ?? "");
+    const minDays = String(formData.get("minDays") ?? "");
+    const pricePerDay = String(formData.get("pricePerDay") ?? "");
+
+    const minDaysNum = Math.floor(Number(minDays));
+    const cents = Math.round(Number(pricePerDay) * 100);
+
+    if (!rentalItemId) return { ok: false, error: "Missing rentalItemId." };
+    if (!oldTierId) return { ok: false, error: "Missing oldTierId." };
+    if (!Number.isFinite(minDaysNum) || minDaysNum < 1) {
+      return { ok: false, error: "Min days must be at least 1." };
+    }
+    if (!Number.isFinite(cents) || cents < 0) {
+      return { ok: false, error: "Invalid price." };
+    }
+
+    const container = createContainer();
+    const rentalItemRepo = container.getRentalItemRepository();
+    
+    // Use findByShopWithTierIds to get tier IDs
+    const rentalItemWithIds = await rentalItemRepo.findByShopWithTierIds(session.shop, rentalItemId);
+    if (!rentalItemWithIds) {
+      return { ok: false, error: "Rental item not found." };
+    }
+
+    // Find the tier being edited
+    const tierToUpdate = rentalItemWithIds.rateTiers.find((t: any) => t.id === oldTierId);
+    if (!tierToUpdate) {
+      return { ok: false, error: "Tier not found." };
+    }
+
+    // Check if new minDays conflicts with another tier (but allow same tier to keep same minDays)
+    const existingMinDays = (rentalItemWithIds.rateTiers || [])
+      .filter((t: any) => t.id !== oldTierId)
+      .map((t: any) => t.minDays);
+    
+    if (existingMinDays.includes(minDaysNum)) {
+      return { ok: false, error: `Another tier for ${minDaysNum} days already exists. Please use a different number of days.` };
+    }
+
+    // Create updated tiers array (remove old, add new)
+    const newTiers = rentalItemWithIds.rateTiers
+      .filter((t: any) => t.id !== oldTierId)
+      .map((t: any) => ({
+        minDays: t.minDays,
+        pricePerDayCents: t.pricePerDayCents
+      }));
+    
+    newTiers.push({ minDays: minDaysNum, pricePerDayCents: cents });
+
+    const updateResult = rentalItemWithIds.updatePricing(
+      rentalItemWithIds.basePricePerDay,
+      rentalItemWithIds.pricingAlgorithm,
+      newTiers,
+      rentalItemWithIds.quantity
+    );
+
+    if (updateResult.isFailure) {
+      return { ok: false, error: updateResult.error };
+    }
+
+    await rentalItemRepo.save(rentalItemWithIds);
+
+    // Sync metafield
+    const syncResult = await syncPricingMetafieldBestEffort({
+      admin,
+      shopifyProductId: rentalItemWithIds.shopifyProductId,
+      basePricePerDayCents: rentalItemWithIds.basePricePerDay.cents,
+      tiers: (rentalItemWithIds.rateTiers || []).map(t => ({
+        minDays: t.minDays,
+        pricePerDayCents: t.pricePerDay.cents
+      })),
+    });
+
+    return {
+      ok: true,
+      action: "tier_updated",
+      ...(!syncResult.ok && syncResult.warning ? { warning: syncResult.warning } : {}),
+    };
+  }
+
   return { ok: false, error: "Unknown intent" };
 };

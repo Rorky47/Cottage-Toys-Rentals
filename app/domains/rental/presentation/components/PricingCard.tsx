@@ -11,6 +11,9 @@ export function PricingCard({ fetcher, row }: Props) {
   const rental = row.rentalItem!;
   const [minDays, setMinDays] = useState("");
   const [pricePerDay, setPricePerDay] = useState("");
+  const [editingTierId, setEditingTierId] = useState<string | null>(null);
+  const [editMinDays, setEditMinDays] = useState("");
+  const [editPricePerDay, setEditPricePerDay] = useState("");
 
   return (
     <Card>
@@ -79,21 +82,79 @@ export function PricingCard({ fetcher, row }: Props) {
             </fetcher.Form>
 
             {rental.rateTiers?.length ? (
-              <BlockStack gap="200">
-                {rental.rateTiers.map((t) => (
-                  <InlineStack key={t.id} align="space-between" blockAlign="center">
-                    <Text as="p" variant="bodyMd">
-                      {t.minDays}+ days → {(t.pricePerDayCents / 100).toFixed(2)} {row.currencyCode}/day
-                    </Text>
-                    <fetcher.Form method="post">
-                      <input type="hidden" name="intent" value="remove_tier" />
-                      <input type="hidden" name="tierId" value={t.id} />
-                      <Button tone="critical" submit size="slim">
-                        Remove
-                      </Button>
-                    </fetcher.Form>
-                  </InlineStack>
-                ))}
+              <BlockStack gap="300">
+                {rental.rateTiers.map((t) => {
+                  const isEditing = editingTierId === t.id;
+                  
+                  return (
+                    <Card key={t.id}>
+                      {isEditing ? (
+                        <fetcher.Form method="post">
+                          <input type="hidden" name="intent" value="update_tier" />
+                          <input type="hidden" name="oldTierId" value={t.id} />
+                          <input type="hidden" name="rentalItemId" value={rental.id} />
+                          <BlockStack gap="300">
+                            <InlineStack gap="300" blockAlign="end" wrap>
+                              <Box minWidth="160px">
+                                <TextField
+                                  label="Min days"
+                                  name="minDays"
+                                  type="number"
+                                  step={1}
+                                  min={1}
+                                  value={editMinDays}
+                                  onChange={setEditMinDays}
+                                  autoComplete="off"
+                                />
+                              </Box>
+                              <Box minWidth="220px">
+                                <TextField
+                                  label={`Price per day (${row.currencyCode})`}
+                                  name="pricePerDay"
+                                  type="number"
+                                  step={0.01}
+                                  min={0}
+                                  value={editPricePerDay}
+                                  onChange={setEditPricePerDay}
+                                  autoComplete="off"
+                                />
+                              </Box>
+                            </InlineStack>
+                            <InlineStack gap="200">
+                              <Button submit>Save</Button>
+                              <Button onClick={() => setEditingTierId(null)}>Cancel</Button>
+                            </InlineStack>
+                          </BlockStack>
+                        </fetcher.Form>
+                      ) : (
+                        <InlineStack align="space-between" blockAlign="center">
+                          <Text as="p" variant="bodyMd">
+                            {t.minDays}+ days → {(t.pricePerDayCents / 100).toFixed(2)} {row.currencyCode}/day
+                          </Text>
+                          <InlineStack gap="200">
+                            <Button 
+                              size="slim"
+                              onClick={() => {
+                                setEditingTierId(t.id);
+                                setEditMinDays(String(t.minDays));
+                                setEditPricePerDay((t.pricePerDayCents / 100).toFixed(2));
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <fetcher.Form method="post">
+                              <input type="hidden" name="intent" value="remove_tier" />
+                              <input type="hidden" name="tierId" value={t.id} />
+                              <Button tone="critical" submit size="slim">
+                                Remove
+                              </Button>
+                            </fetcher.Form>
+                          </InlineStack>
+                        </InlineStack>
+                      )}
+                    </Card>
+                  );
+                })}
               </BlockStack>
             ) : (
               <Text as="p" variant="bodySm" tone="subdued">
