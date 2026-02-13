@@ -408,20 +408,6 @@
         } catch (e) {}
       }
 
-      function readRentalCart() {
-        try {
-          var raw = localStorage.getItem('cottage_rental_cart');
-          if (!raw) return [];
-          var parsed = JSON.parse(raw);
-          return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          return [];
-        }
-      }
-      function writeRentalCart(items) {
-        try { localStorage.setItem('cottage_rental_cart', JSON.stringify(items)); } catch (e) {}
-      }
-
       // Helper to create line item properties - all hidden (underscore prefix)
       // Cart Transform will handle displaying rental dates in a nice format
       function createRentalProperties(start, end, days, bookingRef) {
