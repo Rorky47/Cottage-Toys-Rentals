@@ -275,9 +275,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Update pricing algorithm (keeps existing tiers)
     const updateResult = rentalItem.updatePricing(
-      rentalItem.basePricePerDay.cents,
+      rentalItem.basePricePerDay,
       pricingAlgorithm as "FLAT" | "TIERED",
-      rentalItem.rateTiers
+      rentalItem.rateTiers.map(t => ({
+        minDays: t.minDays,
+        pricePerDayCents: t.pricePerDay.cents
+      })),
+      rentalItem.quantity
     );
 
     if (updateResult.isFailure) {
@@ -327,13 +331,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // Add new tier
-    const existingTiers = rentalItem.rateTiers;
+    const existingTiers = rentalItem.rateTiers.map(t => ({
+      minDays: t.minDays,
+      pricePerDayCents: t.pricePerDay.cents
+    }));
     const newTiers = [...existingTiers, { minDays: minDaysNum, pricePerDayCents: cents }];
 
     const updateResult = rentalItem.updatePricing(
-      rentalItem.basePricePerDay.cents,
+      rentalItem.basePricePerDay,
       rentalItem.pricingAlgorithm,
-      newTiers
+      newTiers,
+      rentalItem.quantity
     );
 
     if (updateResult.isFailure) {
@@ -363,32 +371,49 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (!tierId) return { ok: false, error: "Missing tierId." };
 
-    // Find which rental item owns this tier
+    // Find which rental item owns this tier (need raw data with IDs)
     const container = createContainer();
     const rentalItemRepo = container.getRentalItemRepository();
     
-    // Get all rental items for this shop
-    const rentalItems = await rentalItemRepo.findByShop(session.shop);
-    let rentalItem = null;
+    // Get all rental items with tier IDs
+    const rentalItemsWithTierIds = await rentalItemRepo.findByShopWithTierIds(session.shop);
+    let targetItem = null;
     
-    for (const item of rentalItems) {
+    for (const item of rentalItemsWithTierIds) {
       if (item.rateTiers.some(t => t.id === tierId)) {
-        rentalItem = item;
+        targetItem = item;
         break;
       }
     }
 
-    if (!rentalItem) {
+    if (!targetItem) {
       return { ok: false, error: "Tier not found." };
     }
 
-    // Remove the tier
-    const newTiers = rentalItem.rateTiers.filter(t => t.id !== tierId);
+    // Fetch the full domain entity
+    const rentalItem = await rentalItemRepo.findById(targetItem.id);
+    if (!rentalItem) {
+      return { ok: false, error: "Rental item not found." };
+    }
+
+    // Remove the tier by matching minDays and price (since domain entity doesn't have IDs)
+    const tierToRemove = targetItem.rateTiers.find(t => t.id === tierId);
+    if (!tierToRemove) {
+      return { ok: false, error: "Tier not found." };
+    }
+
+    const newTiers = rentalItem.rateTiers
+      .filter(t => !(t.minDays === tierToRemove.minDays && t.pricePerDay.cents === tierToRemove.pricePerDayCents))
+      .map(t => ({
+        minDays: t.minDays,
+        pricePerDayCents: t.pricePerDay.cents
+      }));
 
     const updateResult = rentalItem.updatePricing(
-      rentalItem.basePricePerDay.cents,
+      rentalItem.basePricePerDay,
       rentalItem.pricingAlgorithm,
-      newTiers
+      newTiers,
+      rentalItem.quantity
     );
 
     if (updateResult.isFailure) {
