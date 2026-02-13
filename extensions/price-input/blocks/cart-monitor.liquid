@@ -23,6 +23,33 @@
         });
     }
     
+    function checkForRemovals(cartBefore, newCart) {
+      if (!cartBefore || !newCart) return;
+      
+      // Build map of remaining bookingRefs
+      var remainingBookingRefs = {};
+      if (newCart.items) {
+        newCart.items.forEach(function(item) {
+          if (item.properties && item.properties._booking_ref) {
+            remainingBookingRefs[item.properties._booking_ref] = true;
+          }
+        });
+      }
+      
+      // Check if any bookings were removed
+      if (cartBefore.items) {
+        cartBefore.items.forEach(function(item) {
+          if (item.properties && item.properties._booking_ref) {
+            var bookingRef = item.properties._booking_ref;
+            if (!remainingBookingRefs[bookingRef]) {
+              console.log('[rental-cart] Item removed, unreserving:', bookingRef);
+              unreserveBooking(bookingRef);
+            }
+          }
+        });
+      }
+    }
+    
     function unreserveBooking(bookingRef) {
       console.log('[rental-cart] Unreserving booking:', bookingRef);
       fetch(appProxyUrl(API_UNRESERVE), {
@@ -41,71 +68,45 @@
     // Load initial cart state
     loadCurrentCart();
     
-    // Poll cart every 2 seconds to detect removals
-    setInterval(function() {
-      var cartBefore = currentCart;
-      loadCurrentCart().then(function(newCart) {
-        if (!cartBefore || !newCart) return;
+    // Intercept cart API calls to detect removals immediately
+    var originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+      var promise = originalFetch.apply(this, arguments);
+      
+      // Detect cart modification API calls
+      if (typeof url === 'string' && 
+          (url.includes('/cart/change.js') || 
+           url.includes('/cart/update.js') || 
+           url.includes('/cart/clear.js'))) {
         
-        // Build map of remaining bookingRefs
-        var remainingBookingRefs = {};
-        if (newCart.items) {
-          newCart.items.forEach(function(item) {
-            if (item.properties && item.properties._booking_ref) {
-              remainingBookingRefs[item.properties._booking_ref] = true;
-            }
-          });
-        }
+        var cartBefore = currentCart;
         
-        // Check if any bookings were removed
-        if (cartBefore.items) {
-          cartBefore.items.forEach(function(item) {
-            if (item.properties && item.properties._booking_ref) {
-              var bookingRef = item.properties._booking_ref;
-              if (!remainingBookingRefs[bookingRef]) {
-                console.log('[rental-cart] Item removed, unreserving:', bookingRef);
-                unreserveBooking(bookingRef);
-              }
-            }
-          });
-        }
-      });
-    }, 2000);
+        // After the change completes, check what was removed
+        promise.then(function(response) {
+          setTimeout(function() {
+            loadCurrentCart().then(function(newCart) {
+              checkForRemovals(cartBefore, newCart);
+            });
+          }, 100);
+        }).catch(function() {});
+      }
+      
+      return promise;
+    };
     
-    // Also listen for cart:updated events
+    // Listen for cart:updated events from themes
     if (typeof document !== 'undefined') {
       document.addEventListener('cart:updated', function() {
         setTimeout(function() {
           var cartBefore = currentCart;
           loadCurrentCart().then(function(newCart) {
-            if (!cartBefore || !newCart) return;
-            
-            var remainingBookingRefs = {};
-            if (newCart.items) {
-              newCart.items.forEach(function(item) {
-                if (item.properties && item.properties._booking_ref) {
-                  remainingBookingRefs[item.properties._booking_ref] = true;
-                }
-              });
-            }
-            
-            if (cartBefore.items) {
-              cartBefore.items.forEach(function(item) {
-                if (item.properties && item.properties._booking_ref) {
-                  var bookingRef = item.properties._booking_ref;
-                  if (!remainingBookingRefs[bookingRef]) {
-                    console.log('[rental-cart] Item removed (event), unreserving:', bookingRef);
-                    unreserveBooking(bookingRef);
-                  }
-                }
-              });
-            }
+            checkForRemovals(cartBefore, newCart);
           });
         }, 100);
       });
     }
     
-    console.log('[rental-cart] Cart monitor initialized');
+    console.log('[rental-cart] Cart monitor initialized (event-driven, no polling)');
   })();
 </script>
 
