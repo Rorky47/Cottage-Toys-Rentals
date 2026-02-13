@@ -292,10 +292,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Sync metafield
     const syncResult = await syncPricingMetafieldBestEffort({
-      admin,
-      shop: session.shop,
+      admin: admin.graphql,
       shopifyProductId: rentalItem.shopifyProductId,
-      rentalItemId: rentalItem.id,
+      basePricePerDayCents: rentalItem.basePricePerDay.cents,
+      tiers: rentalItem.rateTiers.map(t => ({
+        minDays: t.minDays,
+        pricePerDayCents: t.pricePerDay.cents
+      })),
     });
 
     return {
@@ -352,10 +355,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Sync metafield
     const syncResult = await syncPricingMetafieldBestEffort({
-      admin,
-      shop: session.shop,
+      admin: admin.graphql,
       shopifyProductId: rentalItem.shopifyProductId,
-      rentalItemId: rentalItem.id,
+      basePricePerDayCents: rentalItem.basePricePerDay.cents,
+      tiers: rentalItem.rateTiers.map(t => ({
+        minDays: t.minDays,
+        pricePerDayCents: t.pricePerDay.cents
+      })),
     });
 
     return {
@@ -424,10 +430,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Sync metafield
     const syncResult = await syncPricingMetafieldBestEffort({
-      admin,
-      shop: session.shop,
+      admin: admin.graphql,
       shopifyProductId: rentalItem.shopifyProductId,
-      rentalItemId: rentalItem.id,
+      basePricePerDayCents: rentalItem.basePricePerDay.cents,
+      tiers: rentalItem.rateTiers.map(t => ({
+        minDays: t.minDays,
+        pricePerDayCents: t.pricePerDay.cents
+      })),
     });
 
     return {

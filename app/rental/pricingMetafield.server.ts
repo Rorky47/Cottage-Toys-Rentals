@@ -22,9 +22,10 @@ export async function syncRentalPricingMetafieldForProduct(opts: {
   const { admin, shopifyProductId, basePricePerDayCents, tiers } = opts;
 
   const productGid = `gid://shopify/Product/${shopifyProductId}`;
+  const sortedTiers = (tiers || []).sort((a, b) => a.minDays - b.minDays);
   const value = JSON.stringify({
     basePricePerDayCents,
-    tiers: [...tiers].sort((a, b) => a.minDays - b.minDays),
+    tiers: sortedTiers,
   });
 
   const resp = await admin.graphql(
