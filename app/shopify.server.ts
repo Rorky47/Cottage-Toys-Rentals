@@ -89,6 +89,14 @@ const shopify = shopifyApp({
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/orders/paid",
     },
+    ORDERS_CANCELLED: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/orders/cancelled",
+    },
+    PRODUCTS_DELETE: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/products/delete",
+    },
     CUSTOMERS_DATA_REQUEST: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/customers/data_request",

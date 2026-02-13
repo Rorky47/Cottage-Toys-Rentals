@@ -21,6 +21,8 @@ export interface IBookingRepository {
   
   findByOrderId(orderId: string): Promise<Booking[]>;
   
+  findReservedByRentalItemId(rentalItemId: string): Promise<Booking[]>;
+  
   findExpired(now: Date): Promise<Booking[]>;
 
   findByShopAndDateRange(

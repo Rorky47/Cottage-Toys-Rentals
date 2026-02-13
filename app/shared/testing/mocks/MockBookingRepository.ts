@@ -25,6 +25,11 @@ export class MockBookingRepository implements IBookingRepository {
     return all.filter((b) => b.orderId === orderId);
   }
 
+  async findReservedByRentalItemId(rentalItemId: string): Promise<Booking[]> {
+    const all = Array.from(this.bookings.values());
+    return all.filter((b) => b.rentalItemId === rentalItemId && b.status === "RESERVED");
+  }
+
   async findExpired(now: Date): Promise<Booking[]> {
     const all = Array.from(this.bookings.values());
     return all.filter((b) => b.isExpired(now));
@@ -48,6 +53,46 @@ export class MockBookingRepository implements IBookingRepository {
     for (const id of ids) {
       this.bookings.delete(id);
     }
+  }
+
+  async findByRentalItemAndDateRange(
+    rentalItemId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<Booking[]> {
+    const all = Array.from(this.bookings.values());
+    return all.filter(
+      (b) =>
+        b.rentalItemId === rentalItemId &&
+        b.startDate.getTime() === startDate.getTime() &&
+        b.endDate.getTime() === endDate.getTime()
+    );
+  }
+
+  async findByShopAndDateRange(
+    shop: string,
+    startDate: Date,
+    endDate: Date,
+    now: Date
+  ): Promise<Array<{ booking: Booking; rentalItemName: string | null }>> {
+    // Simplified mock - returns all bookings as if they belong to shop
+    const all = Array.from(this.bookings.values());
+    return all
+      .filter((b) => b.isActive())
+      .map((b) => ({ booking: b, rentalItemName: null }));
+  }
+
+  async updateStatus(
+    shop: string,
+    bookingId: string,
+    status: Booking["status"],
+    fulfillmentMethod: "SHIP" | "PICKUP" | "UNKNOWN"
+  ): Promise<boolean> {
+    const booking = this.bookings.get(bookingId);
+    if (!booking) return false;
+    
+    // Mock implementation - just return true
+    return true;
   }
 
   // Test helper methods

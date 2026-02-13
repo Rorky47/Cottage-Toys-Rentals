@@ -116,4 +116,41 @@ export const TestFactories = {
 
     return result.value;
   },
+
+  /**
+   * Create a reserved booking (RESERVED status).
+   */
+  createReservedBooking(overrides?: {
+    id?: string;
+    rentalItemId?: string;
+    startDate?: Date;
+    endDate?: Date;
+    units?: number;
+  }): Booking {
+    return TestFactories.createBooking({
+      ...overrides,
+      status: BookingStatus.RESERVED,
+      orderId: `cart:${crypto.randomUUID()}`,
+      expiresAt: new Date(Date.now() + 45 * 60 * 1000), // 45 min from now
+    });
+  },
+
+  /**
+   * Create a confirmed booking (CONFIRMED status with order ID).
+   */
+  createConfirmedBooking(overrides?: {
+    id?: string;
+    rentalItemId?: string;
+    orderId?: string;
+    startDate?: Date;
+    endDate?: Date;
+    units?: number;
+  }): Booking {
+    return TestFactories.createBooking({
+      ...overrides,
+      status: BookingStatus.CONFIRMED,
+      orderId: overrides?.orderId || "order-123",
+      expiresAt: null,
+    });
+  },
 };

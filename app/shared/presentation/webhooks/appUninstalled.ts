@@ -7,51 +7,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   console.log(`[appUninstalled] Received ${topic} webhook for ${shop}`);
 
-  // 1. Delete metafields from products (App Store requirement)
-  if (admin) {
-    try {
-      // Get all rental items to find products with metafields
-      const rentalItems = await db.rentalItem.findMany({
-        where: { shop },
-        select: { shopifyProductId: true },
-      });
-
-      console.log(`[appUninstalled] Found ${rentalItems.length} products with rental metafields`);
-
-      // Delete rental pricing metafield from each product
-      for (const item of rentalItems) {
-        const productGid = `gid://shopify/Product/${item.shopifyProductId}`;
-        try {
-          await admin.graphql(`
-            mutation {
-              metafieldsDelete(metafields: [{
-                ownerId: "${productGid}",
-                namespace: "rental",
-                key: "pricing"
-              }]) {
-                deletedMetafields {
-                  ownerId
-                  namespace
-                  key
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-          `);
-        } catch (metafieldError) {
-          console.error(`[appUninstalled] Failed to delete metafield for product ${item.shopifyProductId}:`, metafieldError);
-        }
-      }
-      console.log(`[appUninstalled] Deleted metafields from ${rentalItems.length} products`);
-    } catch (error) {
-      console.error(`[appUninstalled] Failed to clean up metafields:`, error);
-    }
-  }
-
-  // 2. Delete all app data from database
+  // Note: Cannot delete metafields here - Shopify revokes token before webhook fires
+  
+  // Delete all app data from database
   // Note: Session might already be invalidated, but we can still clean up by shop domain
   try {
     // Get all rental item IDs for this shop first (needed to delete bookings)
