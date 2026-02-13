@@ -1,0 +1,119 @@
+<script>
+  (function() {
+    // This script runs on cart page to detect when rental items are removed
+    // and unreserve the associated bookings
+    
+    var API_UNRESERVE = '/unreserve';
+    var APP_PROXY_PREFIX = '/apps/nds-rentalrates-app';
+    var currentCart = null;
+    
+    function appProxyUrl(path) {
+      return APP_PROXY_PREFIX + path;
+    }
+    
+    function loadCurrentCart() {
+      return fetch('/cart.js', { credentials: 'same-origin' })
+        .then(function(res) { return res.json(); })
+        .then(function(cart) {
+          currentCart = cart;
+          return cart;
+        })
+        .catch(function() {
+          return null;
+        });
+    }
+    
+    function unreserveBooking(bookingRef) {
+      console.log('[rental-cart] Unreserving booking:', bookingRef);
+      fetch(appProxyUrl(API_UNRESERVE), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_ref: bookingRef })
+      })
+        .then(function() {
+          console.log('[rental-cart] Successfully unreserved:', bookingRef);
+        })
+        .catch(function(e) {
+          console.warn('[rental-cart] Failed to unreserve:', e);
+        });
+    }
+    
+    // Load initial cart state
+    loadCurrentCart();
+    
+    // Poll cart every 2 seconds to detect removals
+    setInterval(function() {
+      var cartBefore = currentCart;
+      loadCurrentCart().then(function(newCart) {
+        if (!cartBefore || !newCart) return;
+        
+        // Build map of remaining bookingRefs
+        var remainingBookingRefs = {};
+        if (newCart.items) {
+          newCart.items.forEach(function(item) {
+            if (item.properties && item.properties._booking_ref) {
+              remainingBookingRefs[item.properties._booking_ref] = true;
+            }
+          });
+        }
+        
+        // Check if any bookings were removed
+        if (cartBefore.items) {
+          cartBefore.items.forEach(function(item) {
+            if (item.properties && item.properties._booking_ref) {
+              var bookingRef = item.properties._booking_ref;
+              if (!remainingBookingRefs[bookingRef]) {
+                console.log('[rental-cart] Item removed, unreserving:', bookingRef);
+                unreserveBooking(bookingRef);
+              }
+            }
+          });
+        }
+      });
+    }, 2000);
+    
+    // Also listen for cart:updated events
+    if (typeof document !== 'undefined') {
+      document.addEventListener('cart:updated', function() {
+        setTimeout(function() {
+          var cartBefore = currentCart;
+          loadCurrentCart().then(function(newCart) {
+            if (!cartBefore || !newCart) return;
+            
+            var remainingBookingRefs = {};
+            if (newCart.items) {
+              newCart.items.forEach(function(item) {
+                if (item.properties && item.properties._booking_ref) {
+                  remainingBookingRefs[item.properties._booking_ref] = true;
+                }
+              });
+            }
+            
+            if (cartBefore.items) {
+              cartBefore.items.forEach(function(item) {
+                if (item.properties && item.properties._booking_ref) {
+                  var bookingRef = item.properties._booking_ref;
+                  if (!remainingBookingRefs[bookingRef]) {
+                    console.log('[rental-cart] Item removed (event), unreserving:', bookingRef);
+                    unreserveBooking(bookingRef);
+                  }
+                }
+              });
+            }
+          });
+        }, 100);
+      });
+    }
+    
+    console.log('[rental-cart] Cart monitor initialized');
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Rental Cart Monitor",
+  "target": "section",
+  "enabled_on": { "templates": ["cart"] },
+  "settings": []
+}
+{% endschema %}
