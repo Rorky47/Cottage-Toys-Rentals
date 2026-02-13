@@ -295,7 +295,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       admin: admin.graphql,
       shopifyProductId: rentalItem.shopifyProductId,
       basePricePerDayCents: rentalItem.basePricePerDay.cents,
-      tiers: rentalItem.rateTiers.map(t => ({
+      tiers: (rentalItem.rateTiers || []).map(t => ({
         minDays: t.minDays,
         pricePerDayCents: t.pricePerDay.cents
       })),
@@ -358,7 +358,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       admin: admin.graphql,
       shopifyProductId: rentalItem.shopifyProductId,
       basePricePerDayCents: rentalItem.basePricePerDay.cents,
-      tiers: rentalItem.rateTiers.map(t => ({
+      tiers: (rentalItem.rateTiers || []).map(t => ({
         minDays: t.minDays,
         pricePerDayCents: t.pricePerDay.cents
       })),
@@ -433,7 +433,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       admin: admin.graphql,
       shopifyProductId: rentalItem.shopifyProductId,
       basePricePerDayCents: rentalItem.basePricePerDay.cents,
-      tiers: rentalItem.rateTiers.map(t => ({
+      tiers: (rentalItem.rateTiers || []).map(t => ({
         minDays: t.minDays,
         pricePerDayCents: t.pricePerDay.cents
       })),
