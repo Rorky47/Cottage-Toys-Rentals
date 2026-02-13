@@ -1,7 +1,8 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import prisma from "~/db.server";
 import { authenticate } from "~/shopify";
-import { normalizeShopifyProductId } from "~/utils";
+import { normalizeShopifyProductId, toErrorMessage } from "~/utils";
+import { syncRentalPricingMetafieldForProduct } from "~/rental/pricingMetafield.server";
 import type { RentalConfigRow } from "~/domains/rental/presentation/types";
 import { createContainer } from "~/shared/container";
 import type { TrackProductInput } from "~/domains/rental/application/useCases/dto/TrackProductDto";
@@ -12,6 +13,28 @@ export type HomeLoaderData = {
   rows: RentalConfigRow[];
   privacyAccepted: boolean;
 };
+
+function isMetafieldPermissionError(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes("access denied for metafieldsset") || m.includes("metafieldsset field");
+}
+
+async function syncPricingMetafieldBestEffort(opts: Parameters<typeof syncRentalPricingMetafieldForProduct>[0]) {
+  try {
+    await syncRentalPricingMetafieldForProduct(opts);
+    return { ok: true as const };
+  } catch (e) {
+    const msg = toErrorMessage(e);
+    if (isMetafieldPermissionError(msg)) {
+      return {
+        ok: false as const,
+        warning:
+          "Saved, but couldn't sync product pricing metafield (missing Shopify scope `write_products`). Reinstall/reauthorize the app after updating scopes.",
+      };
+    }
+    return { ok: false as const, warning: `Saved, but couldn't sync product pricing metafield: ${msg}` };
+  }
+}
 
 type ShopifyProductInfo = {
   title: string | null;
@@ -226,6 +249,166 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ok: true,
       action: "updated",
       ...(result.value.warning ? { warning: result.value.warning } : {}),
+    };
+  }
+
+  // ===== Set Pricing Mode (Flat vs Tiered) =====
+  if (intent === "set_pricing_mode") {
+    const rentalItemId = String(formData.get("rentalItemId") ?? "");
+    const mode = String(formData.get("mode") ?? "");
+
+    if (!rentalItemId) return { ok: false, error: "Missing rentalItemId." };
+    if (mode !== "flat" && mode !== "tiered") {
+      return { ok: false, error: "Invalid pricing mode. Must be 'flat' or 'tiered'." };
+    }
+
+    const pricingAlgorithm = mode === "flat" ? "FLAT" : "TIERED";
+
+    // Use UpdateRentalItemUseCase to change pricing algorithm
+    const container = createContainer();
+    const rentalItemRepo = container.getRentalItemRepository();
+    
+    const rentalItem = await rentalItemRepo.findById(rentalItemId);
+    if (!rentalItem) {
+      return { ok: false, error: "Rental item not found." };
+    }
+
+    // Update pricing algorithm (keeps existing tiers)
+    const updateResult = rentalItem.updatePricing(
+      rentalItem.basePricePerDay.cents,
+      pricingAlgorithm as "FLAT" | "TIERED",
+      rentalItem.rateTiers
+    );
+
+    if (updateResult.isFailure) {
+      return { ok: false, error: updateResult.error };
+    }
+
+    await rentalItemRepo.save(rentalItem);
+
+    // Sync metafield
+    const syncResult = await syncPricingMetafieldBestEffort({
+      admin,
+      shop: session.shop,
+      shopifyProductId: rentalItem.shopifyProductId,
+      rentalItemId: rentalItem.id,
+    });
+
+    return {
+      ok: true,
+      action: "pricing_mode_changed",
+      ...(!syncResult.ok && syncResult.warning ? { warning: syncResult.warning } : {}),
+    };
+  }
+
+  // ===== Add Tier =====
+  if (intent === "add_tier") {
+    const rentalItemId = String(formData.get("rentalItemId") ?? "");
+    const minDays = String(formData.get("minDays") ?? "");
+    const pricePerDay = String(formData.get("pricePerDay") ?? "");
+
+    const minDaysNum = Math.floor(Number(minDays));
+    const cents = Math.round(Number(pricePerDay) * 100);
+
+    if (!rentalItemId) return { ok: false, error: "Missing rentalItemId." };
+    if (!Number.isFinite(minDaysNum) || minDaysNum < 1) {
+      return { ok: false, error: "Min days must be at least 1." };
+    }
+    if (!Number.isFinite(cents) || cents < 0) {
+      return { ok: false, error: "Invalid price." };
+    }
+
+    const container = createContainer();
+    const rentalItemRepo = container.getRentalItemRepository();
+    
+    const rentalItem = await rentalItemRepo.findById(rentalItemId);
+    if (!rentalItem) {
+      return { ok: false, error: "Rental item not found." };
+    }
+
+    // Add new tier
+    const existingTiers = rentalItem.rateTiers;
+    const newTiers = [...existingTiers, { minDays: minDaysNum, pricePerDayCents: cents }];
+
+    const updateResult = rentalItem.updatePricing(
+      rentalItem.basePricePerDay.cents,
+      rentalItem.pricingAlgorithm,
+      newTiers
+    );
+
+    if (updateResult.isFailure) {
+      return { ok: false, error: updateResult.error };
+    }
+
+    await rentalItemRepo.save(rentalItem);
+
+    // Sync metafield
+    const syncResult = await syncPricingMetafieldBestEffort({
+      admin,
+      shop: session.shop,
+      shopifyProductId: rentalItem.shopifyProductId,
+      rentalItemId: rentalItem.id,
+    });
+
+    return {
+      ok: true,
+      action: "tier_added",
+      ...(!syncResult.ok && syncResult.warning ? { warning: syncResult.warning } : {}),
+    };
+  }
+
+  // ===== Remove Tier =====
+  if (intent === "remove_tier") {
+    const tierId = String(formData.get("tierId") ?? "");
+
+    if (!tierId) return { ok: false, error: "Missing tierId." };
+
+    // Find which rental item owns this tier
+    const container = createContainer();
+    const rentalItemRepo = container.getRentalItemRepository();
+    
+    // Get all rental items for this shop
+    const rentalItems = await rentalItemRepo.findByShop(session.shop);
+    let rentalItem = null;
+    
+    for (const item of rentalItems) {
+      if (item.rateTiers.some(t => t.id === tierId)) {
+        rentalItem = item;
+        break;
+      }
+    }
+
+    if (!rentalItem) {
+      return { ok: false, error: "Tier not found." };
+    }
+
+    // Remove the tier
+    const newTiers = rentalItem.rateTiers.filter(t => t.id !== tierId);
+
+    const updateResult = rentalItem.updatePricing(
+      rentalItem.basePricePerDay.cents,
+      rentalItem.pricingAlgorithm,
+      newTiers
+    );
+
+    if (updateResult.isFailure) {
+      return { ok: false, error: updateResult.error };
+    }
+
+    await rentalItemRepo.save(rentalItem);
+
+    // Sync metafield
+    const syncResult = await syncPricingMetafieldBestEffort({
+      admin,
+      shop: session.shop,
+      shopifyProductId: rentalItem.shopifyProductId,
+      rentalItemId: rentalItem.id,
+    });
+
+    return {
+      ok: true,
+      action: "tier_removed",
+      ...(!syncResult.ok && syncResult.warning ? { warning: syncResult.warning } : {}),
     };
   }
 
