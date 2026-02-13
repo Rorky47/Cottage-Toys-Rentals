@@ -77,7 +77,7 @@ export const reserveActionNew = async ({ request }: ActionFunctionArgs) => {
 
   try {
     // Find rental item by Shopify product ID
-    const rentalItem = await container.getRentalItemRepository().findByShopifyProductId(session.shop, productId);
+    const rentalItem = await container.getRentalItemRepository().findByShopifyProduct(session.shop, productId);
     if (!rentalItem) {
       return json({ ok: false, error: "Rental item not configured" }, { status: 404 });
     }

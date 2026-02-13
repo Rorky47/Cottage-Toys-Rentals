@@ -18,7 +18,7 @@ export class CreateRentalItemUseCase {
 
   async execute(input: CreateRentalItemInput): Promise<Result<RentalItemDto>> {
     // 1. Check if already exists
-    const existing = await this.rentalItemRepo.findByShopifyProductId(
+    const existing = await this.rentalItemRepo.findByShopifyProduct(
       input.shop,
       input.shopifyProductId
     );
