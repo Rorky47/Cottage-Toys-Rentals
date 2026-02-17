@@ -430,8 +430,8 @@
           var j = await resp.json();
           console.log('[Rental Calendar] Quote response:', j);
           if (quoteKey !== lastQuoteKey) return;
-          if (j && j.ok && typeof j.lineTotalCents === 'number') {
-            updateDisplayedPrice(formatMoneyFromCents(j.lineTotalCents));
+          if (j && j.ok && typeof j.totalCents === 'number') {
+            updateDisplayedPrice(formatMoneyFromCents(j.totalCents));
           } else {
             console.warn('[Rental Calendar] Invalid quote response:', j);
           }
