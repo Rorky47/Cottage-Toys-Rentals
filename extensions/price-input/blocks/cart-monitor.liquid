@@ -92,7 +92,38 @@
     // Load initial cart state
     loadCurrentCart();
     
-    // Intercept cart API calls to detect removals immediately
+    // Intercept XMLHttpRequest (many themes use this instead of fetch)
+    var originalXHROpen = XMLHttpRequest.prototype.open;
+    var originalXHRSend = XMLHttpRequest.prototype.send;
+    
+    XMLHttpRequest.prototype.open = function(method, url) {
+      this._url = url;
+      this._method = method;
+      return originalXHROpen.apply(this, arguments);
+    };
+    
+    XMLHttpRequest.prototype.send = function() {
+      var xhr = this;
+      var url = String(this._url || '');
+      
+      if (url.includes('/cart/change') || url.includes('/cart/update') || url.includes('/cart/clear')) {
+        console.log('[rental-cart] Detected XHR cart modification:', url);
+        var cartBefore = currentCart;
+        
+        xhr.addEventListener('load', function() {
+          console.log('[rental-cart] XHR completed, reloading cart...');
+          setTimeout(function() {
+            loadCurrentCart().then(function(newCart) {
+              checkForRemovals(cartBefore, newCart);
+            });
+          }, 200);
+        });
+      }
+      
+      return originalXHRSend.apply(this, arguments);
+    };
+    
+    // Also intercept fetch API
     var originalFetch = window.fetch;
     window.fetch = function(url, options) {
       var promise = originalFetch.apply(this, arguments);
@@ -103,15 +134,17 @@
            url.includes('/cart/update.js') || 
            url.includes('/cart/clear.js'))) {
         
+        console.log('[rental-cart] Detected fetch cart modification:', url);
         var cartBefore = currentCart;
         
         // After the change completes, check what was removed
         promise.then(function(response) {
+          console.log('[rental-cart] Fetch completed, reloading cart...');
           setTimeout(function() {
             loadCurrentCart().then(function(newCart) {
               checkForRemovals(cartBefore, newCart);
             });
-          }, 100);
+          }, 200);
         }).catch(function() {});
       }
       
