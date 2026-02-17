@@ -206,8 +206,18 @@
       var checkoutBtn = root.querySelector('[data-role="checkout"]');
       var clearBtn = root.querySelector('[data-role="clear"]');
 
-      var priceEl = document.querySelector('.price-item--regular');
+      // Try multiple selectors to find the price element
+      var priceEl = document.querySelector('.price-item--regular') ||
+                    document.querySelector('.price__regular') ||
+                    document.querySelector('[data-price]') ||
+                    document.querySelector('.product__price');
       var originalPriceText = priceEl ? priceEl.textContent : null;
+      
+      console.log('[Rental Calendar] Price element found:', !!priceEl);
+      console.log('[Rental Calendar] Product ID:', productId);
+      if (!priceEl) {
+        console.warn('[Rental Calendar] Could not find price element. Tried selectors: .price-item--regular, .price__regular, [data-price], .product__price');
+      }
       
       // API endpoint constants
       var API_QUOTE = '/quote';
@@ -271,7 +281,11 @@
         return priceFormat.prefix + amount + priceFormat.suffix;
       }
       function updateDisplayedPrice(text) {
-        if (!priceEl || !text) return;
+        if (!priceEl || !text) {
+          console.warn('[Rental Calendar] Cannot update price:', { priceEl: !!priceEl, text: text });
+          return;
+        }
+        console.log('[Rental Calendar] Updating price to:', text);
         priceEl.textContent = text;
       }
       function normalizeProxyBasePath(raw) {
@@ -387,8 +401,10 @@
 
       var lastQuoteKey = null;
       async function updatePriceFromSelection() {
+        console.log('[Rental Calendar] updatePriceFromSelection called');
         var start = parseDateOnly(startInput.value);
         var end = parseDateOnly(endInput.value);
+        console.log('[Rental Calendar] Dates:', { start: startInput.value, end: endInput.value, parsed: { start, end } });
         if (!(start && end)) {
           if (originalPriceText) updateDisplayedPrice(originalPriceText);
           return;
@@ -408,13 +424,20 @@
             '&start_date=' + encodeURIComponent(String(startStr)) +
             '&end_date=' + encodeURIComponent(String(endStr)) +
             '&units=1';
-          var resp = await fetch(appProxyUrl(API_QUOTE + qs), { credentials: 'same-origin' });
+          var url = appProxyUrl(API_QUOTE + qs);
+          console.log('[Rental Calendar] Fetching quote:', url);
+          var resp = await fetch(url, { credentials: 'same-origin' });
           var j = await resp.json();
+          console.log('[Rental Calendar] Quote response:', j);
           if (quoteKey !== lastQuoteKey) return;
           if (j && j.ok && typeof j.lineTotalCents === 'number') {
             updateDisplayedPrice(formatMoneyFromCents(j.lineTotalCents));
+          } else {
+            console.warn('[Rental Calendar] Invalid quote response:', j);
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error('[Rental Calendar] Quote fetch failed:', e);
+        }
       }
 
       // Helper to create line item properties - all hidden (underscore prefix)
