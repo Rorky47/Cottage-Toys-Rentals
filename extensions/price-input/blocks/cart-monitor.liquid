@@ -52,16 +52,27 @@
     
     function unreserveBooking(bookingRef) {
       console.log('[rental-cart] Unreserving booking:', bookingRef);
-      fetch(appProxyUrl(API_UNRESERVE), {
+      var url = appProxyUrl(API_UNRESERVE);
+      console.log('[rental-cart] POST to:', url);
+      fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ booking_ref: bookingRef })
       })
-        .then(function() {
-          console.log('[rental-cart] Successfully unreserved:', bookingRef);
+        .then(function(response) {
+          console.log('[rental-cart] Unreserve response status:', response.status);
+          return response.json();
+        })
+        .then(function(data) {
+          console.log('[rental-cart] Unreserve response:', data);
+          if (data.ok) {
+            console.log('[rental-cart] ✓ Successfully unreserved:', bookingRef);
+          } else {
+            console.warn('[rental-cart] ✗ Unreserve failed:', data.error);
+          }
         })
         .catch(function(e) {
-          console.warn('[rental-cart] Failed to unreserve:', e);
+          console.error('[rental-cart] ✗ Network error unreserving:', e);
         });
     }
     
@@ -107,6 +118,58 @@
     }
     
     console.log('[rental-cart] Cart monitor initialized (event-driven, no polling)');
+  })();
+  
+  // Add rental dates to product titles in cart (matches checkout format)
+  (function() {
+    function formatCartTitles() {
+      fetch('/cart.js', { credentials: 'same-origin' })
+        .then(function(res) { return res.json(); })
+        .then(function(cart) {
+          if (!cart.items) return;
+          
+          cart.items.forEach(function(item, index) {
+            var props = item.properties || {};
+            
+            // Check if this is a rental item
+            if (props._rental_start && props._rental_end) {
+              var titleSuffix = ' (Rental: ' + props._rental_start + ' to ' + props._rental_end + ')';
+              
+              // Find title element (varies by theme)
+              var selectors = [
+                '.cart-item:nth-of-type(' + (index + 1) + ') .cart-item__name',
+                '.cart-item:nth-of-type(' + (index + 1) + ') a',
+                '.cart__item:nth-of-type(' + (index + 1) + ') .cart__item-name',
+                'tr:nth-of-type(' + (index + 1) + ') .cart-item__title'
+              ];
+              
+              var titleEl = null;
+              for (var i = 0; i < selectors.length; i++) {
+                titleEl = document.querySelector(selectors[i]);
+                if (titleEl && !titleEl.textContent.includes('Rental:')) break;
+                titleEl = null;
+              }
+              
+              if (titleEl && !titleEl.textContent.includes('Rental:')) {
+                titleEl.textContent = titleEl.textContent + titleSuffix;
+              }
+            }
+          });
+        })
+        .catch(function() {});
+    }
+    
+    // Run on load
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', formatCartTitles);
+    } else {
+      setTimeout(formatCartTitles, 100);
+    }
+    
+    // Re-run on cart updates
+    document.addEventListener('cart:updated', function() {
+      setTimeout(formatCartTitles, 200);
+    });
   })();
 </script>
 
