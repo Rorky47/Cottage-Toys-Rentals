@@ -1,9 +1,18 @@
 {% assign variant = product.selected_or_first_available_variant %}
+{% comment %}
+  Extract numeric ID from Shopify GID format
+  product.id returns "gid://shopify/Product/1234567890"
+  We need just "1234567890"
+{% endcomment %}
+{% assign product_id_parts = product.id | split: '/' %}
+{% assign numeric_product_id = product_id_parts | last %}
+{% assign variant_id_parts = variant.id | split: '/' %}
+{% assign numeric_variant_id = variant_id_parts | last %}
 
 <div
   class="cottage-rental-calendar"
-  data-product-id="{{ product.id }}"
-  data-variant-id="{{ variant.id }}"
+  data-product-id="{{ numeric_product_id }}"
+  data-variant-id="{{ numeric_variant_id }}"
   data-today="{{ 'now' | date: '%Y-%m-%d' }}"
   data-currency="{{ shop.currency }}"
   data-shop-domain="{{ shop.permanent_domain }}"
