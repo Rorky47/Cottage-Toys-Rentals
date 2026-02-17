@@ -54,9 +54,10 @@ export class UpdateRentalBasicsUseCase {
       rentalItem.rateTiers
     );
 
-    // 5. Invalidate cache
-    // TODO: Week 8 - Cache invalidation should be abstracted behind ICacheService interface
-    // invalidateRentalCache(rentalItem.shop, rentalItem.shopifyProductId);
+    // 5. Cache invalidation
+    // Note: No caching layer currently implemented. When added, consider:
+    // - Abstract behind ICacheService interface
+    // - Invalidate rental data for this product
 
     // 6. Return result
     return Result.ok({
